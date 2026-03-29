@@ -25,7 +25,7 @@ CMakeFiles/swr.dir/src/main.cpp.o
  /mnt/e/awat/swr/src/scene/light.h
  /mnt/e/awat/swr/src/scene/transform.h
  /mnt/e/awat/swr/src/third_party/stb_image.h
- /mnt/e/awat/swr/src/shading/phong.h
+ /mnt/e/awat/swr/src/shading/pbr.h
  /mnt/e/awat/swr/src/shading/texture.h
  /usr/include/SDL2/SDL.h
  /usr/include/SDL2/SDL_assert.h

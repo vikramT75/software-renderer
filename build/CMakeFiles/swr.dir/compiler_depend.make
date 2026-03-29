@@ -24,7 +24,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /mnt/e/awat/swr/src/scene/light.h \
   /mnt/e/awat/swr/src/scene/transform.h \
   /mnt/e/awat/swr/src/third_party/stb_image.h \
-  /mnt/e/awat/swr/src/shading/phong.h \
+  /mnt/e/awat/swr/src/shading/pbr.h \
   /mnt/e/awat/swr/src/shading/texture.h \
   /usr/include/SDL2/SDL.h \
   /usr/include/SDL2/SDL_assert.h \
@@ -517,8 +517,6 @@ swr: /lib/x86_64-linux-gnu/libFLAC.so.14 \
 
 /usr/lib/gcc/x86_64-linux-gnu/14/crtbeginS.o:
 
-/usr/lib/x86_64-linux-gnu/libgcc_s.so.1:
-
 /lib64/ld-linux-x86-64.so.2:
 
 /lib/x86_64-linux-gnu/libxkbcommon.so.0:
@@ -969,11 +967,9 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/SDL2/SDL_misc.h:
 
-/mnt/e/awat/swr/src/shading/phong.h:
+/usr/include/c++/14/tr1/beta_function.tcc:
 
-/usr/include/c++/14/bits/allocator.h:
-
-/usr/include/string.h:
+/usr/include/SDL2/SDL_atomic.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avxifmaintrin.h:
 
@@ -1059,17 +1055,13 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h:
 
-/usr/include/inttypes.h:
-
-/mnt/e/awat/swr/src/main.cpp:
+/usr/include/c++/14/bits/alloc_traits.h:
 
 /mnt/e/awat/swr/src/pipeline/vertex.h:
 
-/usr/include/c++/14/bits/alloc_traits.h:
+/usr/include/inttypes.h:
 
-/usr/include/c++/14/tr1/beta_function.tcc:
-
-/usr/include/SDL2/SDL_atomic.h:
+/mnt/e/awat/swr/src/main.cpp:
 
 /usr/include/c++/14/cstring:
 
@@ -1122,6 +1114,10 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /mnt/e/awat/swr/src/shading/shader.h:
 
 /usr/include/SDL2/SDL_config.h:
+
+/usr/lib/x86_64-linux-gnu/libgcc_s.so.1:
+
+/mnt/e/awat/swr/src/shading/pbr.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/fmaintrin.h:
 
@@ -1492,6 +1488,10 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/wctype.h:
 
 /usr/include/sched.h:
+
+/usr/include/c++/14/bits/allocator.h:
+
+/usr/include/string.h:
 
 /lib/x86_64-linux-gnu/libXext.so.6:
 

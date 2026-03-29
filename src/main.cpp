@@ -6,7 +6,7 @@
 #include "scene/light.h"
 #include "math/math_utils.h"
 #include "loaders/obj_loader.h"
-#include "shading/phong.h"
+#include "shading/pbr.h"
 #include "shading/texture.h"
 #include <iostream>
 
@@ -19,7 +19,9 @@ int main(int argc, char *argv[])
     Renderer renderer(WIDTH, HEIGHT);
 
     Camera camera;
-    camera.position = {0.f, 0.f, 3.f};
+    camera.position = {0.f, 3.f, 6.f};
+    camera.yaw = -MathUtils::HALF_PI;
+    camera.pitch = MathUtils::toRadians(-20.f);
     camera.fovY = MathUtils::toRadians(60.f);
     camera.aspect = static_cast<float>(WIDTH) / HEIGHT;
     camera.zNear = 0.1f;
@@ -36,14 +38,14 @@ int main(int argc, char *argv[])
     keyLight.type = LightType::Directional;
     keyLight.direction = Vec3{-1.f, -1.f, -1.f}.normalized();
     keyLight.color = {1.f, 1.f, 1.f};
-    keyLight.intensity = 1.f;
+    keyLight.intensity = 2.f;
     lightList.add(keyLight);
 
     Light fillLight;
     fillLight.type = LightType::Directional;
     fillLight.direction = Vec3{1.f, -0.5f, 0.f}.normalized();
     fillLight.color = {1.f, 1.f, 1.f};
-    fillLight.intensity = 0.4f;
+    fillLight.intensity = 0.5f;
     lightList.add(fillLight);
 
     Light pointLight;
@@ -51,74 +53,85 @@ int main(int argc, char *argv[])
     pointLight.color = {1.f, 1.f, 1.f};
     pointLight.intensity = 3.f;
     pointLight.attConstant = 1.f;
-    pointLight.attLinear = 0.35f;
-    pointLight.attQuadratic = 0.44f;
+    pointLight.attLinear = 0.5f;
+    pointLight.attQuadratic = 0.8f;
     lightList.add(pointLight);
 
     // -----------------------------------------------------------------------
-    // Shadow map — for key light only
+    // Shadow map — key light only
     // -----------------------------------------------------------------------
     ShadowMap shadowMap;
     shadowMap.width = 1024;
     shadowMap.height = 1024;
-    shadowMap.bias = 0.005f;
-    shadowMap.setup(keyLight.direction, {0.f, 0.f, 0.f}, 3.f, 0.1f, 50.f);
+    shadowMap.bias = 0.012f;
+    shadowMap.setup(keyLight.direction, {0.5f, 0.5f, 0.5f}, 2.f, 0.1f, 30.f);
 
     // -----------------------------------------------------------------------
-    // Shader + texture
+    // Textures
     // -----------------------------------------------------------------------
-    Texture diffuse;
+    Texture cubeAlbedo;
     try
     {
-        diffuse.load("assets/textures/cube.bmp");
+        cubeAlbedo.load("assets/textures/cube.bmp");
     }
     catch (const std::exception &e)
     {
         std::cerr << "Texture: " << e.what() << "\n";
     }
 
-    PhongShader phong;
-    phong.lights = &lightList;
-    phong.shadowMap = &shadowMap;
-    phong.albedo = {0.8f, 0.8f, 0.8f};
-    phong.specular = {1.f, 1.f, 1.f};
-    phong.shininess = 64.f;
-    phong.ambient = 0.08f;
-    phong.diffuseMap = diffuse.loaded ? &diffuse : nullptr;
-    renderer.activeShader = &phong;
+    // -----------------------------------------------------------------------
+    // Shaders
+    // -----------------------------------------------------------------------
+    PBRShader cubePBR;
+    cubePBR.lights = &lightList;
+    cubePBR.shadowMap = &shadowMap;
+    cubePBR.albedo = {1.f, 1.f, 1.f};
+    cubePBR.metallic = 0.3f;
+    cubePBR.roughness = 0.5f;
+    cubePBR.ao = 1.f;
+    cubePBR.albedoMap = cubeAlbedo.loaded ? &cubeAlbedo : nullptr;
+
+    PBRShader groundPBR;
+    groundPBR.lights = &lightList;
+    groundPBR.shadowMap = &shadowMap;
+    groundPBR.albedo = {0.4f, 0.38f, 0.35f};
+    groundPBR.metallic = 0.f;
+    groundPBR.roughness = 0.85f;
+    groundPBR.ao = 1.f;
 
     // -----------------------------------------------------------------------
-    // Mesh
+    // Meshes
     // -----------------------------------------------------------------------
-    Mesh mesh;
-    bool hasMesh = false;
+    Mesh cubeMesh, groundMesh;
+    bool hasCube = false, hasGround = false;
     try
     {
-        mesh = loadOBJ("assets/models/cube.obj");
-        hasMesh = true;
+        cubeMesh = loadOBJ("assets/models/cube.obj");
+        hasCube = true;
     }
     catch (const std::exception &e)
     {
-        std::cerr << "OBJ: " << e.what() << "\n";
+        std::cerr << "Cube OBJ: " << e.what() << "\n";
+    }
+    try
+    {
+        groundMesh = loadOBJ("assets/models/ground.obj");
+        hasGround = true;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Ground OBJ: " << e.what() << "\n";
     }
 
-    static const Vertex triNear[3] = {
-        {Vec3{-0.9f, 0.9f, -4.0f}, Vec3{0, 0, 1}, Vec2{0, 0}},
-        {Vec3{0.9f, 0.9f, -4.0f}, Vec3{0, 0, 1}, Vec2{1, 0}},
-        {Vec3{0.0f, -0.9f, -4.0f}, Vec3{0, 0, 1}, Vec2{0.5f, 1}},
-    };
-    static const Vertex triFar[3] = {
-        {Vec3{-1.8f, 0.9f, -6.0f}, Vec3{0, 0, 1}, Vec2{0, 0}},
-        {Vec3{0.0f, 0.9f, -6.0f}, Vec3{0, 0, 1}, Vec2{1, 0}},
-        {Vec3{-0.9f, -0.9f, -6.0f}, Vec3{0, 0, 1}, Vec2{0.5f, 1}},
-    };
-    static const Vertex triBack[3] = {
-        {Vec3{-0.5f, 1.2f, -5.0f}, Vec3{0, 0, 1}, Vec2{0, 0}},
-        {Vec3{1.2f, 1.2f, -5.0f}, Vec3{0, 0, 1}, Vec2{1, 0}},
-        {Vec3{0.35f, -1.2f, -5.0f}, Vec3{0, 0, 1}, Vec2{0.5f, 1}},
-    };
+    std::cout << "hasCube=" << hasCube << " verts=" << cubeMesh.vertices.size() << "\n";
+    std::cout << "hasGround=" << hasGround << " verts=" << groundMesh.vertices.size() << "\n";
 
-    Transform modelTransform;
+    // Cube sits on ground — original cube.obj verts in [0,1] so y=0 puts bottom on ground
+    Transform cubeTransform;
+    cubeTransform.position = {0.f, 0.f, 0.f};
+
+    Transform groundTransform; // identity
+
     float angle = 0.f;
     uint32_t last = SDL_GetTicks();
 
@@ -129,55 +142,58 @@ int main(int argc, char *argv[])
         last = now;
 
         angle += 1.5f * dt;
-        modelTransform.rotation.y = angle;
-        modelTransform.rotation.x = angle * 0.4f;
+        cubeTransform.rotation.y = angle;
+        cubeTransform.rotation.x = angle * 0.4f;
 
-        Mat4 model = modelTransform.matrix();
-
-        // Orbit point light
-        float orbitR = 2.f;
+        // Orbit point light above ground
         lightList.lights[2].position = {
-            std::cos(angle * 1.3f) * orbitR,
-            std::sin(angle * 0.7f) * orbitR,
-            std::sin(angle * 1.3f) * orbitR};
+            std::cos(angle * 1.3f) * 2.f,
+            1.5f,
+            std::sin(angle * 1.3f) * 2.f};
 
         const InputState &in = window.input();
         camera.update(dt,
                       in.w, in.s, in.a, in.d,
-                      in.e, in.q,
-                      in.shift,
+                      in.e, in.q, in.shift,
                       in.mouseDX, in.mouseDY);
 
-        phong.cameraPos = camera.position;
+        cubePBR.cameraPos = camera.position;
+        groundPBR.cameraPos = camera.position;
+
+        Mat4 cubeModel = cubeTransform.matrix();
+        Mat4 groundModel = groundTransform.matrix();
+        Mat4 view = camera.view();
+        Mat4 proj = camera.projection();
 
         // -------------------------------------------------------------------
         // Pass 1 — shadow pass
         // -------------------------------------------------------------------
-        renderer.setModel(model);
+        renderer.setModel(cubeModel);
         renderer.beginShadowPass(shadowMap);
-        if (hasMesh)
-            renderer.drawTriangles(mesh.vertices, mesh.indices, 0);
-        else
-        {
-            renderer.drawRawTriangle(triBack, 0);
-            renderer.drawRawTriangle(triFar, 0);
-            renderer.drawRawTriangle(triNear, 0);
-        }
+        if (hasCube)
+            renderer.drawTriangles(cubeMesh.vertices, cubeMesh.indices, 0);
         renderer.endShadowPass();
 
         // -------------------------------------------------------------------
         // Pass 2 — main pass
         // -------------------------------------------------------------------
-        renderer.beginFrame(0xFF111111);
-        renderer.setMVP(model, camera.view(), camera.projection());
-        if (hasMesh)
-            renderer.drawTriangles(mesh.vertices, mesh.indices, 0);
-        else
-        {
-            renderer.drawRawTriangle(triBack, 0);
-            renderer.drawRawTriangle(triFar, 0);
-            renderer.drawRawTriangle(triNear, 0);
-        }
+        renderer.beginFrame(0xFF1a1a2e);
+
+        // Cube
+        renderer.cullMode = CullMode::Back;
+        renderer.activeShader = &cubePBR;
+        renderer.setMVP(cubeModel, view, proj);
+        if (hasCube)
+            renderer.drawTriangles(cubeMesh.vertices, cubeMesh.indices, 0);
+
+        // Ground — no culling so winding doesn't matter
+        renderer.cullMode = CullMode::None;
+        renderer.activeShader = &groundPBR;
+        renderer.setMVP(groundModel, view, proj);
+        if (hasGround)
+            renderer.drawTriangles(groundMesh.vertices, groundMesh.indices, 0);
+        renderer.cullMode = CullMode::Back;
+
         renderer.endFrame();
         window.present(renderer.pixelData());
     }
