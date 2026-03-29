@@ -291,17 +291,18 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
  /usr/include/c++/14/bits/stl_vector.h \
  /usr/include/c++/14/bits/stl_bvector.h \
  /usr/include/c++/14/bits/vector.tcc \
+ /mnt/e/awat/swr/src/core/shadow_map.h \
+ /mnt/e/awat/swr/src/core/../math/mat4.h \
+ /mnt/e/awat/swr/src/core/../math/vec4.h \
+ /mnt/e/awat/swr/src/core/../math/vec3.h \
  /mnt/e/awat/swr/src/core/../pipeline/vertex.h \
  /mnt/e/awat/swr/src/core/../pipeline/../math/vec2.h \
- /mnt/e/awat/swr/src/core/../pipeline/../math/vec3.h \
- /mnt/e/awat/swr/src/core/../pipeline/../math/vec4.h \
  /mnt/e/awat/swr/src/core/../pipeline/triangle.h \
  /mnt/e/awat/swr/src/core/../pipeline/projection.h \
  /mnt/e/awat/swr/src/core/../pipeline/clipping.h \
  /mnt/e/awat/swr/src/core/../rasterizer/rasterizer.h \
  /mnt/e/awat/swr/src/core/../rasterizer/barycentric.h \
  /mnt/e/awat/swr/src/core/../rasterizer/../shading/shader.h \
- /mnt/e/awat/swr/src/core/../math/mat4.h \
  /mnt/e/awat/swr/src/scene/camera.h \
  /mnt/e/awat/swr/src/scene/../math/math_utils.h \
  /mnt/e/awat/swr/src/scene/transform.h /mnt/e/awat/swr/src/scene/light.h \

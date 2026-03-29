@@ -3,9 +3,9 @@
 
 CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /mnt/e/awat/swr/src/math/mat4.h \
-  /mnt/e/awat/swr/src/math/vec2.h \
   /mnt/e/awat/swr/src/math/vec3.h \
   /mnt/e/awat/swr/src/math/vec4.h \
+  /mnt/e/awat/swr/src/math/vec2.h \
   /mnt/e/awat/swr/src/pipeline/clipping.h \
   /mnt/e/awat/swr/src/pipeline/projection.h \
   /mnt/e/awat/swr/src/pipeline/triangle.h \
@@ -16,6 +16,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /mnt/e/awat/swr/src/core/depthbuffer.h \
   /mnt/e/awat/swr/src/core/framebuffer.h \
   /mnt/e/awat/swr/src/core/renderer.h \
+  /mnt/e/awat/swr/src/core/shadow_map.h \
   /mnt/e/awat/swr/src/loaders/obj_loader.h \
   /mnt/e/awat/swr/src/platform/sdl_window.h \
   /mnt/e/awat/swr/src/math/math_utils.h \
@@ -808,13 +809,9 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/14/include/sm4intrin.h:
+/usr/lib/gcc/x86_64-linux-gnu/14/include/avx2intrin.h:
 
-/usr/include/c++/14/bits/refwrap.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h:
-
-/usr/include/SDL2/SDL_audio.h:
+/usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/wmmintrin.h:
 
@@ -823,12 +820,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /lib/x86_64-linux-gnu/libX11-xcb.so.1:
 
 /usr/include/c++/14/bits/predefined_ops.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/14/include/amxbf16intrin.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h:
-
-/usr/include/asm-generic/errno.h:
 
 /usr/include/c++/14/bits/locale_classes.h:
 
@@ -956,10 +947,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /mnt/e/awat/swr/src/third_party/stb_image.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/14/include/avx2intrin.h:
-
-/usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h:
-
 /usr/include/SDL2/SDL_scancode.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
@@ -987,12 +974,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/c++/14/bits/allocator.h:
 
 /usr/include/string.h:
-
-/usr/include/c++/14/bits/basic_ios.h:
-
-/usr/include/SDL2/SDL_mutex.h:
-
-/usr/include/x86_64-linux-gnu/bits/math-vector.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avxifmaintrin.h:
 
@@ -1032,6 +1013,12 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /mnt/e/awat/swr/src/pipeline/clipping.h:
 
+/usr/include/c++/14/bits/basic_ios.h:
+
+/usr/include/SDL2/SDL_mutex.h:
+
+/usr/include/x86_64-linux-gnu/bits/math-vector.h:
+
 /usr/lib/x86_64-linux-gnu/crtn.o:
 
 /usr/include/x86_64-linux-gnu/bits/waitflags.h:
@@ -1041,6 +1028,14 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/lib/gcc/x86_64-linux-gnu/14/include/f16cintrin.h:
 
 /usr/include/c++/14/bits/char_traits.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h:
+
+/usr/include/SDL2/SDL_audio.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/sm4intrin.h:
+
+/usr/include/c++/14/bits/refwrap.h:
 
 /lib/x86_64-linux-gnu/libwayland-cursor.so.0:
 
@@ -1186,6 +1181,14 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/tr1/riemann_zeta.tcc:
 
+/usr/lib/gcc/x86_64-linux-gnu/14/include/amxbf16intrin.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_sched_param.h:
+
+/usr/include/asm-generic/errno.h:
+
+/mnt/e/awat/swr/src/core/shadow_map.h:
+
 /usr/include/x86_64-linux-gnu/sys/types.h:
 
 /mnt/e/awat/swr/src/scene/light.h:
@@ -1239,6 +1242,12 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/c++/14/bits/std_abs.h:
 
 /usr/include/c++/14/pstl/pstl_config.h:
+
+/usr/include/c++/14/cmath:
+
+/usr/include/c++/14/sstream:
+
+/usr/include/c++/14/bits/stl_algo.h:
 
 /usr/include/c++/14/bits/new_allocator.h:
 
@@ -1433,12 +1442,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /mnt/e/awat/swr/src/math/math_utils.h:
 
 /usr/include/c++/14/pstl/execution_defs.h:
-
-/usr/include/c++/14/cmath:
-
-/usr/include/c++/14/bits/stl_algo.h:
-
-/usr/include/c++/14/sstream:
 
 /usr/include/c++/14/string:
 

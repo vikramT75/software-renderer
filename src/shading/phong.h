@@ -2,15 +2,16 @@
 #include "shader.h"
 #include "texture.h"
 #include "../scene/light.h"
+#include "../core/shadow_map.h"
 #include "../math/math_utils.h"
 #include <cmath>
 
 struct PhongShader : Shader
 {
     const LightList *lights = nullptr;
+    const ShadowMap *shadowMap = nullptr; // null = no shadows
     Vec3 cameraPos = {0.f, 0.f, 0.f};
 
-    // Material
     Vec3 albedo = {1.f, 1.f, 1.f};
     Vec3 specular = {1.f, 1.f, 1.f};
     float shininess = 32.f;
@@ -21,12 +22,11 @@ struct PhongShader : Shader
     uint32_t shade(const FragmentInput &frag) const override
     {
         if (!lights || lights->lights.empty())
-            return 0xFF888888; // no lights — return grey
+            return 0xFF888888;
 
         Vec3 N = frag.normal.normalized();
         Vec3 V = (cameraPos - frag.position).normalized();
 
-        // Resolve diffuse colour
         Vec3 diff = albedo;
         if (diffuseMap && diffuseMap->loaded)
         {
@@ -37,12 +37,21 @@ struct PhongShader : Shader
                 ((t) & 0xFF) / 255.f};
         }
 
-        // Accumulate ambient once (not per-light)
+        // Check shadow — only applied to key light (index 0)
+        bool shadowed = false;
+        if (shadowMap)
+            shadowed = shadowMap->inShadow(frag.position);
+
         Vec3 result = diff * ambient;
 
-        // Accumulate each light
-        for (const Light &light : lights->lights)
+        for (size_t li = 0; li < lights->lights.size(); ++li)
         {
+            const Light &light = lights->lights[li];
+
+            // Shadow only affects key light (first light)
+            if (li == 0 && shadowed)
+                continue;
+
             Vec3 L;
             float attenuation = 1.f;
 
@@ -53,7 +62,7 @@ struct PhongShader : Shader
                          -light.direction.z}
                         .normalized();
             }
-            else // Point
+            else
             {
                 Vec3 toLight = light.position - frag.position;
                 float dist = toLight.length();
@@ -63,12 +72,10 @@ struct PhongShader : Shader
 
             float NdotL = MathUtils::clamp(N.dot(L), 0.f, 1.f);
 
-            // Diffuse
             result.x += diff.x * light.color.x * NdotL * light.intensity * attenuation;
             result.y += diff.y * light.color.y * NdotL * light.intensity * attenuation;
             result.z += diff.z * light.color.z * NdotL * light.intensity * attenuation;
 
-            // Specular
             if (NdotL > 0.f)
             {
                 Vec3 R = N * (2.f * N.dot(L)) - L;

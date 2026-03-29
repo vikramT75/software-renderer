@@ -1,5 +1,6 @@
 #include "platform/sdl_window.h"
 #include "core/renderer.h"
+#include "core/shadow_map.h"
 #include "scene/camera.h"
 #include "scene/transform.h"
 #include "scene/light.h"
@@ -31,34 +32,40 @@ int main(int argc, char *argv[])
     // -----------------------------------------------------------------------
     LightList lightList;
 
-    // Key light — warm directional from top-right
     Light keyLight;
     keyLight.type = LightType::Directional;
     keyLight.direction = Vec3{-1.f, -1.f, -1.f}.normalized();
-    keyLight.color = {1.0f, 0.95f, 0.8f}; // warm white
-    keyLight.intensity = 0.7f;
+    keyLight.color = {1.f, 1.f, 1.f};
+    keyLight.intensity = 1.f;
     lightList.add(keyLight);
 
-    // Fill light — cool directional from the left, dimmer
     Light fillLight;
     fillLight.type = LightType::Directional;
     fillLight.direction = Vec3{1.f, -0.5f, 0.f}.normalized();
-    fillLight.color = {1.0f, 1.0f, 1.0f}; // white
-    fillLight.intensity = 0.3f;
+    fillLight.color = {1.f, 1.f, 1.f};
+    fillLight.intensity = 0.4f;
     lightList.add(fillLight);
 
-    // Point light — red, orbits the cube
     Light pointLight;
     pointLight.type = LightType::Point;
-    pointLight.color = {1.0f, 1.0f, 1.0f}; // white
-    pointLight.intensity = 1.2f;
+    pointLight.color = {1.f, 1.f, 1.f};
+    pointLight.intensity = 3.f;
     pointLight.attConstant = 1.f;
     pointLight.attLinear = 0.35f;
     pointLight.attQuadratic = 0.44f;
-    lightList.add(pointLight); // position updated each frame below
+    lightList.add(pointLight);
 
     // -----------------------------------------------------------------------
-    // Shader
+    // Shadow map — for key light only
+    // -----------------------------------------------------------------------
+    ShadowMap shadowMap;
+    shadowMap.width = 1024;
+    shadowMap.height = 1024;
+    shadowMap.bias = 0.005f;
+    shadowMap.setup(keyLight.direction, {0.f, 0.f, 0.f}, 3.f, 0.1f, 50.f);
+
+    // -----------------------------------------------------------------------
+    // Shader + texture
     // -----------------------------------------------------------------------
     Texture diffuse;
     try
@@ -72,10 +79,11 @@ int main(int argc, char *argv[])
 
     PhongShader phong;
     phong.lights = &lightList;
+    phong.shadowMap = &shadowMap;
     phong.albedo = {0.8f, 0.8f, 0.8f};
     phong.specular = {1.f, 1.f, 1.f};
     phong.shininess = 64.f;
-    phong.ambient = 0.04f;
+    phong.ambient = 0.08f;
     phong.diffuseMap = diffuse.loaded ? &diffuse : nullptr;
     renderer.activeShader = &phong;
 
@@ -124,7 +132,9 @@ int main(int argc, char *argv[])
         modelTransform.rotation.y = angle;
         modelTransform.rotation.x = angle * 0.4f;
 
-        // Orbit point light around the cube
+        Mat4 model = modelTransform.matrix();
+
+        // Orbit point light
         float orbitR = 2.f;
         lightList.lights[2].position = {
             std::cos(angle * 1.3f) * orbitR,
@@ -140,9 +150,11 @@ int main(int argc, char *argv[])
 
         phong.cameraPos = camera.position;
 
-        renderer.beginFrame(0xFF111111);
-        renderer.setMVP(modelTransform.matrix(), camera.view(), camera.projection());
-
+        // -------------------------------------------------------------------
+        // Pass 1 — shadow pass
+        // -------------------------------------------------------------------
+        renderer.setModel(model);
+        renderer.beginShadowPass(shadowMap);
         if (hasMesh)
             renderer.drawTriangles(mesh.vertices, mesh.indices, 0);
         else
@@ -151,7 +163,21 @@ int main(int argc, char *argv[])
             renderer.drawRawTriangle(triFar, 0);
             renderer.drawRawTriangle(triNear, 0);
         }
+        renderer.endShadowPass();
 
+        // -------------------------------------------------------------------
+        // Pass 2 — main pass
+        // -------------------------------------------------------------------
+        renderer.beginFrame(0xFF111111);
+        renderer.setMVP(model, camera.view(), camera.projection());
+        if (hasMesh)
+            renderer.drawTriangles(mesh.vertices, mesh.indices, 0);
+        else
+        {
+            renderer.drawRawTriangle(triBack, 0);
+            renderer.drawRawTriangle(triFar, 0);
+            renderer.drawRawTriangle(triNear, 0);
+        }
         renderer.endFrame();
         window.present(renderer.pixelData());
     }

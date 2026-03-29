@@ -4,9 +4,9 @@
 CMakeFiles/swr.dir/src/main.cpp.o
  /mnt/e/awat/swr/src/main.cpp
  /mnt/e/awat/swr/src/math/mat4.h
- /mnt/e/awat/swr/src/math/vec2.h
  /mnt/e/awat/swr/src/math/vec3.h
  /mnt/e/awat/swr/src/math/vec4.h
+ /mnt/e/awat/swr/src/math/vec2.h
  /mnt/e/awat/swr/src/pipeline/clipping.h
  /mnt/e/awat/swr/src/pipeline/projection.h
  /mnt/e/awat/swr/src/pipeline/triangle.h
@@ -17,6 +17,7 @@ CMakeFiles/swr.dir/src/main.cpp.o
  /mnt/e/awat/swr/src/core/depthbuffer.h
  /mnt/e/awat/swr/src/core/framebuffer.h
  /mnt/e/awat/swr/src/core/renderer.h
+ /mnt/e/awat/swr/src/core/shadow_map.h
  /mnt/e/awat/swr/src/loaders/obj_loader.h
  /mnt/e/awat/swr/src/platform/sdl_window.h
  /mnt/e/awat/swr/src/math/math_utils.h

@@ -98,6 +98,21 @@ struct Mat4
         return m;
     }
 
+    static Mat4 orthographic(float left, float right,
+                             float bottom, float top,
+                             float zNear, float zFar)
+    {
+        Mat4 r;
+        r.m[0][0] = 2.f / (right - left);
+        r.m[1][1] = 2.f / (top - bottom);
+        r.m[2][2] = -2.f / (zFar - zNear);
+        r.m[0][3] = -(right + left) / (right - left);
+        r.m[1][3] = -(top + bottom) / (top - bottom);
+        r.m[2][3] = -(zFar + zNear) / (zFar - zNear);
+        r.m[3][3] = 1.f;
+        return r;
+    }
+
     Mat4 operator*(const Mat4 &b) const
     {
         Mat4 r;
