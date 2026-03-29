@@ -26,30 +26,62 @@ int main(int argc, char *argv[])
     camera.moveSpeed = 3.f;
     camera.lookSpeed = 0.003f;
 
-    // Try loading a texture — falls back to albedo colour if not found
+    // -----------------------------------------------------------------------
+    // Lights
+    // -----------------------------------------------------------------------
+    LightList lightList;
+
+    // Key light — warm directional from top-right
+    Light keyLight;
+    keyLight.type = LightType::Directional;
+    keyLight.direction = Vec3{-1.f, -1.f, -1.f}.normalized();
+    keyLight.color = {1.0f, 0.95f, 0.8f}; // warm white
+    keyLight.intensity = 0.7f;
+    lightList.add(keyLight);
+
+    // Fill light — cool directional from the left, dimmer
+    Light fillLight;
+    fillLight.type = LightType::Directional;
+    fillLight.direction = Vec3{1.f, -0.5f, 0.f}.normalized();
+    fillLight.color = {1.0f, 1.0f, 1.0f}; // white
+    fillLight.intensity = 0.3f;
+    lightList.add(fillLight);
+
+    // Point light — red, orbits the cube
+    Light pointLight;
+    pointLight.type = LightType::Point;
+    pointLight.color = {1.0f, 1.0f, 1.0f}; // white
+    pointLight.intensity = 1.2f;
+    pointLight.attConstant = 1.f;
+    pointLight.attLinear = 0.35f;
+    pointLight.attQuadratic = 0.44f;
+    lightList.add(pointLight); // position updated each frame below
+
+    // -----------------------------------------------------------------------
+    // Shader
+    // -----------------------------------------------------------------------
     Texture diffuse;
     try
     {
-        diffuse.load("assets/textures/gabagool.jpg"); // rename to .png/.jpg freely
+        diffuse.load("assets/textures/cube.bmp");
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Texture load failed: " << e.what()
-                  << " — using flat colour\n";
+        std::cerr << "Texture: " << e.what() << "\n";
     }
 
     PhongShader phong;
-    phong.light.type = LightType::Directional;
-    phong.light.direction = Vec3{-1.f, -1.f, -1.f}.normalized();
-    phong.light.color = {1.f, 1.f, 1.f};
-    phong.light.intensity = 1.f;
-    phong.albedo = {0.8f, 0.5f, 0.2f}; // fallback colour
+    phong.lights = &lightList;
+    phong.albedo = {0.8f, 0.8f, 0.8f};
     phong.specular = {1.f, 1.f, 1.f};
-    phong.shininess = 32.f;
-    phong.ambient = 0.15f;
+    phong.shininess = 64.f;
+    phong.ambient = 0.04f;
     phong.diffuseMap = diffuse.loaded ? &diffuse : nullptr;
     renderer.activeShader = &phong;
 
+    // -----------------------------------------------------------------------
+    // Mesh
+    // -----------------------------------------------------------------------
     Mesh mesh;
     bool hasMesh = false;
     try
@@ -59,8 +91,7 @@ int main(int argc, char *argv[])
     }
     catch (const std::exception &e)
     {
-        std::cerr << "OBJ load failed: " << e.what()
-                  << " — falling back to triangle demo\n";
+        std::cerr << "OBJ: " << e.what() << "\n";
     }
 
     static const Vertex triNear[3] = {
@@ -81,17 +112,24 @@ int main(int argc, char *argv[])
 
     Transform modelTransform;
     float angle = 0.f;
-    uint32_t lastTime = SDL_GetTicks();
+    uint32_t last = SDL_GetTicks();
 
     while (window.pollEvents())
     {
         uint32_t now = SDL_GetTicks();
-        float dt = (now - lastTime) / 1000.f;
-        lastTime = now;
+        float dt = (now - last) / 1000.f;
+        last = now;
 
-        angle += 0.01f;
+        angle += 1.5f * dt;
         modelTransform.rotation.y = angle;
         modelTransform.rotation.x = angle * 0.4f;
+
+        // Orbit point light around the cube
+        float orbitR = 2.f;
+        lightList.lights[2].position = {
+            std::cos(angle * 1.3f) * orbitR,
+            std::sin(angle * 0.7f) * orbitR,
+            std::sin(angle * 1.3f) * orbitR};
 
         const InputState &in = window.input();
         camera.update(dt,

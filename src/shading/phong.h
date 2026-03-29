@@ -3,52 +3,86 @@
 #include "texture.h"
 #include "../scene/light.h"
 #include "../math/math_utils.h"
+#include <cmath>
 
 struct PhongShader : Shader
 {
-    Light light;
+    const LightList *lights = nullptr;
+    Vec3 cameraPos = {0.f, 0.f, 0.f};
 
+    // Material
     Vec3 albedo = {1.f, 1.f, 1.f};
     Vec3 specular = {1.f, 1.f, 1.f};
     float shininess = 32.f;
     float ambient = 0.05f;
 
-    Vec3 cameraPos = {0.f, 0.f, 0.f};
-
-    const Texture *diffuseMap = nullptr; // optional — null = use albedo colour
+    const Texture *diffuseMap = nullptr;
 
     uint32_t shade(const FragmentInput &frag) const override
     {
+        if (!lights || lights->lights.empty())
+            return 0xFF888888; // no lights — return grey
+
         Vec3 N = frag.normal.normalized();
-
-        Vec3 L = (light.type == LightType::Directional)
-                     ? Vec3{-light.direction.x,
-                            -light.direction.y,
-                            -light.direction.z}
-                           .normalized()
-                     : (light.position - frag.position).normalized();
-
         Vec3 V = (cameraPos - frag.position).normalized();
 
-        float NdotL = MathUtils::clamp(N.dot(L), 0.f, 1.f);
-        Vec3 R = N * (2.f * N.dot(L)) - L;
-        float spec = std::pow(MathUtils::clamp(R.dot(V), 0.f, 1.f), shininess);
-
-        // Resolve diffuse colour — texture overrides albedo if present
+        // Resolve diffuse colour
         Vec3 diff = albedo;
         if (diffuseMap && diffuseMap->loaded)
         {
-            uint32_t texel = diffuseMap->sampleBilinear(frag.uv.x, frag.uv.y);
-            diff.x = static_cast<float>((texel >> 16) & 0xFF) / 255.f;
-            diff.y = static_cast<float>((texel >> 8) & 0xFF) / 255.f;
-            diff.z = static_cast<float>((texel) & 0xFF) / 255.f;
+            uint32_t t = diffuseMap->sampleBilinear(frag.uv.x, frag.uv.y);
+            diff = {
+                ((t >> 16) & 0xFF) / 255.f,
+                ((t >> 8) & 0xFF) / 255.f,
+                ((t) & 0xFF) / 255.f};
         }
 
-        float li = light.intensity;
-        float r = MathUtils::clamp(diff.x * light.color.x * (ambient + NdotL * li) + specular.x * light.color.x * spec * li, 0.f, 1.f);
-        float g = MathUtils::clamp(diff.y * light.color.y * (ambient + NdotL * li) + specular.y * light.color.y * spec * li, 0.f, 1.f);
-        float b = MathUtils::clamp(diff.z * light.color.z * (ambient + NdotL * li) + specular.z * light.color.z * spec * li, 0.f, 1.f);
+        // Accumulate ambient once (not per-light)
+        Vec3 result = diff * ambient;
 
-        return (0xFF000000) | (static_cast<uint32_t>(r * 255.f) << 16) | (static_cast<uint32_t>(g * 255.f) << 8) | static_cast<uint32_t>(b * 255.f);
+        // Accumulate each light
+        for (const Light &light : lights->lights)
+        {
+            Vec3 L;
+            float attenuation = 1.f;
+
+            if (light.type == LightType::Directional)
+            {
+                L = Vec3{-light.direction.x,
+                         -light.direction.y,
+                         -light.direction.z}
+                        .normalized();
+            }
+            else // Point
+            {
+                Vec3 toLight = light.position - frag.position;
+                float dist = toLight.length();
+                L = toLight * (1.f / dist);
+                attenuation = 1.f / (light.attConstant + light.attLinear * dist + light.attQuadratic * dist * dist);
+            }
+
+            float NdotL = MathUtils::clamp(N.dot(L), 0.f, 1.f);
+
+            // Diffuse
+            result.x += diff.x * light.color.x * NdotL * light.intensity * attenuation;
+            result.y += diff.y * light.color.y * NdotL * light.intensity * attenuation;
+            result.z += diff.z * light.color.z * NdotL * light.intensity * attenuation;
+
+            // Specular
+            if (NdotL > 0.f)
+            {
+                Vec3 R = N * (2.f * N.dot(L)) - L;
+                float spec = std::pow(MathUtils::clamp(R.dot(V), 0.f, 1.f), shininess);
+                result.x += specular.x * light.color.x * spec * light.intensity * attenuation;
+                result.y += specular.y * light.color.y * spec * light.intensity * attenuation;
+                result.z += specular.z * light.color.z * spec * light.intensity * attenuation;
+            }
+        }
+
+        float r = MathUtils::clamp(result.x, 0.f, 1.f);
+        float g = MathUtils::clamp(result.y, 0.f, 1.f);
+        float b = MathUtils::clamp(result.z, 0.f, 1.f);
+
+        return 0xFF000000 | (uint32_t(r * 255.f) << 16) | (uint32_t(g * 255.f) << 8) | uint32_t(b * 255.f);
     }
 };
