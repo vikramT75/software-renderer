@@ -22,6 +22,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /mnt/e/awat/swr/src/scene/camera.h \
   /mnt/e/awat/swr/src/scene/light.h \
   /mnt/e/awat/swr/src/scene/transform.h \
+  /mnt/e/awat/swr/src/third_party/stb_image.h \
   /mnt/e/awat/swr/src/shading/phong.h \
   /mnt/e/awat/swr/src/shading/texture.h \
   /usr/include/SDL2/SDL.h \
@@ -81,6 +82,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/include/asm-generic/int-ll64.h \
   /usr/include/asm-generic/posix_types.h \
   /usr/include/asm-generic/types.h \
+  /usr/include/assert.h \
   /usr/include/c++/14/algorithm \
   /usr/include/c++/14/array \
   /usr/include/c++/14/backward/binders.h \
@@ -216,7 +218,9 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/include/features-time64.h \
   /usr/include/features.h \
   /usr/include/inttypes.h \
+  /usr/include/limits.h \
   /usr/include/linux/errno.h \
+  /usr/include/linux/limits.h \
   /usr/include/linux/posix_types.h \
   /usr/include/linux/sched/types.h \
   /usr/include/linux/stddef.h \
@@ -249,6 +253,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/include/x86_64-linux-gnu/bits/iscanonical.h \
   /usr/include/x86_64-linux-gnu/bits/libc-header-start.h \
   /usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h \
+  /usr/include/x86_64-linux-gnu/bits/local_lim.h \
   /usr/include/x86_64-linux-gnu/bits/locale.h \
   /usr/include/x86_64-linux-gnu/bits/long-double.h \
   /usr/include/x86_64-linux-gnu/bits/math-vector.h \
@@ -256,6 +261,8 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h \
   /usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h \
   /usr/include/x86_64-linux-gnu/bits/mathcalls.h \
+  /usr/include/x86_64-linux-gnu/bits/posix1_lim.h \
+  /usr/include/x86_64-linux-gnu/bits/posix2_lim.h \
   /usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h \
   /usr/include/x86_64-linux-gnu/bits/pthreadtypes.h \
@@ -303,11 +310,13 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/include/x86_64-linux-gnu/bits/types/wint_t.h \
   /usr/include/x86_64-linux-gnu/bits/typesizes.h \
   /usr/include/x86_64-linux-gnu/bits/uintn-identity.h \
+  /usr/include/x86_64-linux-gnu/bits/uio_lim.h \
   /usr/include/x86_64-linux-gnu/bits/waitflags.h \
   /usr/include/x86_64-linux-gnu/bits/waitstatus.h \
   /usr/include/x86_64-linux-gnu/bits/wchar.h \
   /usr/include/x86_64-linux-gnu/bits/wctype-wchar.h \
   /usr/include/x86_64-linux-gnu/bits/wordsize.h \
+  /usr/include/x86_64-linux-gnu/bits/xopen_lim.h \
   /usr/include/x86_64-linux-gnu/c++/14/bits/atomic_word.h \
   /usr/include/x86_64-linux-gnu/c++/14/bits/basic_file.h \
   /usr/include/x86_64-linux-gnu/c++/14/bits/c++allocator.h \
@@ -388,6 +397,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/ia32intrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/immintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/keylockerintrin.h \
+  /usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/lwpintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/lzcntintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/mm_malloc.h \
@@ -414,6 +424,7 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/stdint.h \
+  /usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/tbmintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/tmmintrin.h \
   /usr/lib/gcc/x86_64-linux-gnu/14/include/tsxldtrkintrin.h \
@@ -513,8 +524,6 @@ swr: /lib/x86_64-linux-gnu/libFLAC.so.14 \
 
 /lib/x86_64-linux-gnu/libwayland-egl.so.1:
 
-/lib/x86_64-linux-gnu/libvorbis.so.0:
-
 /lib/x86_64-linux-gnu/libsystemd.so.0:
 
 /lib/x86_64-linux-gnu/libsamplerate.so.0:
@@ -582,6 +591,8 @@ swr: /lib/x86_64-linux-gnu/libFLAC.so.14 \
 /usr/lib/linux/uapi/x86/asm/posix_types.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/lwpintrin.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/keylockerintrin.h:
 
@@ -695,11 +706,17 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/c++/14/bits/c++allocator.h:
 
+/usr/include/x86_64-linux-gnu/bits/xopen_lim.h:
+
 /lib/x86_64-linux-gnu/libgbm.so.1:
 
 /usr/include/x86_64-linux-gnu/bits/wchar.h:
 
 /usr/include/x86_64-linux-gnu/bits/waitstatus.h:
+
+/lib/x86_64-linux-gnu/libvorbis.so.0:
+
+/usr/include/x86_64-linux-gnu/bits/uio_lim.h:
 
 /usr/include/x86_64-linux-gnu/bits/typesizes.h:
 
@@ -781,13 +798,21 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/bits/sched.h:
 
-/usr/include/c++/14/iostream:
+/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
 
-/usr/include/strings.h:
+/usr/include/x86_64-linux-gnu/bits/posix1_lim.h:
+
+/usr/include/x86_64-linux-gnu/bits/mathcalls.h:
+
+/usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h:
+
+/usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/sm4intrin.h:
 
 /usr/include/c++/14/bits/refwrap.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h:
 
 /usr/include/SDL2/SDL_audio.h:
 
@@ -823,6 +848,8 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
 
+/usr/include/x86_64-linux-gnu/bits/posix2_lim.h:
+
 /usr/include/c++/14/bits/ios_base.h:
 
 /usr/include/c++/14/bits/invoke.h:
@@ -851,6 +878,8 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/bits/cxxabi_forced.h:
 
+/usr/include/linux/limits.h:
+
 /usr/include/x86_64-linux-gnu/bits/stdio.h:
 
 /usr/include/c++/14/bits/cpp_type_traits.h:
@@ -874,6 +903,12 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/c++/14/bits/ostream.tcc:
 
 /mnt/e/awat/swr/src/math/vec3.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/xmmintrin.h:
+
+/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
+
+/usr/include/x86_64-linux-gnu/SDL2/_real_SDL_config.h:
 
 /lib/x86_64-linux-gnu/libasound.so.2:
 
@@ -905,8 +940,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/bits/specfun.h:
 
-/usr/include/x86_64-linux-gnu/bits/mathcalls.h:
-
 /lib/x86_64-linux-gnu/libXi.so.6:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/lzcntintrin.h:
@@ -919,23 +952,15 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/locale.h:
 
-/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
-
 /usr/include/SDL2/SDL_surface.h:
+
+/mnt/e/awat/swr/src/third_party/stb_image.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avx2intrin.h:
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h:
 
 /usr/include/SDL2/SDL_scancode.h:
-
-/usr/include/SDL2/SDL_clipboard.h:
-
-/usr/include/pthread.h:
-
-/usr/include/SDL2/SDL_hints.h:
-
-/usr/include/SDL2/SDL_keyboard.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/error_t.h:
 
@@ -955,12 +980,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/bits/streambuf.tcc:
 
-/usr/lib/x86_64-linux-gnu/libm.so:
-
-/usr/include/asm-generic/int-ll64.h:
-
-/usr/include/c++/14/ios:
-
 /usr/include/SDL2/SDL_misc.h:
 
 /mnt/e/awat/swr/src/shading/phong.h:
@@ -968,6 +987,12 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/c++/14/bits/allocator.h:
 
 /usr/include/string.h:
+
+/usr/include/c++/14/bits/basic_ios.h:
+
+/usr/include/SDL2/SDL_mutex.h:
+
+/usr/include/x86_64-linux-gnu/bits/math-vector.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/avxifmaintrin.h:
 
@@ -986,10 +1011,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /lib/x86_64-linux-gnu/libmvec.so.1:
 
 /usr/include/stdlib.h:
-
-/usr/include/c++/14/bits/requires_hosted.h:
-
-/mnt/e/awat/swr/src/scene/camera.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h:
 
@@ -1087,6 +1108,20 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/SDL2/SDL_gamecontroller.h:
 
+/usr/lib/x86_64-linux-gnu/libm.so:
+
+/usr/include/c++/14/ios:
+
+/usr/include/asm-generic/int-ll64.h:
+
+/usr/include/SDL2/SDL_clipboard.h:
+
+/usr/include/pthread.h:
+
+/usr/include/SDL2/SDL_hints.h:
+
+/usr/include/SDL2/SDL_keyboard.h:
+
 /usr/lib/gcc/x86_64-linux-gnu/14/include/vaesintrin.h:
 
 /mnt/e/awat/swr/src/shading/shader.h:
@@ -1117,6 +1152,24 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/ext/atomicity.h:
 
+/usr/include/c++/14/bits/charconv.h:
+
+/usr/include/c++/14/bits/basic_ios.tcc:
+
+/lib/x86_64-linux-gnu/libdbus-1.so.3:
+
+/usr/include/SDL2/SDL_render.h:
+
+/lib/x86_64-linux-gnu/libdecor-0.so.0:
+
+/usr/include/SDL2/SDL_blendmode.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/clwbintrin.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/14/include/avx512bitalgintrin.h:
+
+/usr/include/SDL2/SDL_keycode.h:
+
 /usr/include/x86_64-linux-gnu/c++/14/bits/os_defines.h:
 
 /usr/include/SDL2/SDL_events.h:
@@ -1137,6 +1190,10 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /mnt/e/awat/swr/src/scene/light.h:
 
+/usr/include/x86_64-linux-gnu/bits/floatn-common.h:
+
+/usr/include/c++/14/bits/locale_facets.tcc:
+
 /usr/lib/linux/uapi/x86/asm/errno.h:
 
 /usr/include/stdio.h:
@@ -1155,12 +1212,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/typeinfo:
 
-/usr/include/c++/14/bits/basic_ios.h:
-
-/usr/include/SDL2/SDL_mutex.h:
-
-/usr/include/x86_64-linux-gnu/bits/math-vector.h:
-
 /usr/include/asm-generic/posix_types.h:
 
 /usr/include/c++/14/tr1/bessel_function.tcc:
@@ -1173,27 +1224,13 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/SDL2/SDL_platform.h:
 
-/usr/include/c++/14/bits/charconv.h:
+/mnt/e/awat/swr/src/scene/camera.h:
 
-/usr/include/c++/14/bits/basic_ios.tcc:
+/usr/include/c++/14/bits/requires_hosted.h:
 
-/lib/x86_64-linux-gnu/libdecor-0.so.0:
+/usr/include/c++/14/iostream:
 
-/usr/include/SDL2/SDL_blendmode.h:
-
-/usr/include/c++/14/bits/locale_facets.tcc:
-
-/usr/include/x86_64-linux-gnu/bits/floatn-common.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/14/include/clwbintrin.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/14/include/avx512bitalgintrin.h:
-
-/usr/include/SDL2/SDL_keycode.h:
-
-/lib/x86_64-linux-gnu/libdbus-1.so.3:
-
-/usr/include/SDL2/SDL_render.h:
+/usr/include/strings.h:
 
 /usr/include/c++/14/bits/sstream.tcc:
 
@@ -1229,6 +1266,8 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/features.h:
 
+/usr/include/assert.h:
+
 /usr/include/SDL2/SDL_joystick.h:
 
 /usr/include/c++/14/bits/stl_iterator_base_funcs.h:
@@ -1238,6 +1277,8 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/SDL2/SDL_rwops.h:
 
 /usr/include/c++/14/bits/stl_iterator_base_types.h:
+
+/usr/include/x86_64-linux-gnu/bits/local_lim.h:
 
 /usr/include/c++/14/bits/ostream_insert.h:
 
@@ -1345,6 +1386,8 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/c++/14/ext/type_traits.h:
 
+/usr/include/limits.h:
+
 /usr/lib/gcc/x86_64-linux-gnu/14/include/tmmintrin.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/14/include/sgxintrin.h:
@@ -1435,12 +1478,6 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 
 /usr/include/linux/errno.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/14/include/xmmintrin.h:
-
-/usr/include/x86_64-linux-gnu/SDL2/_real_SDL_config.h:
-
-/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
-
 /usr/lib/x86_64-linux-gnu/libSDL2.so:
 
 /usr/include/linux/types.h:
@@ -1472,7 +1509,3 @@ CMakeFiles/swr.dir/src/main.cpp.o:
 /usr/include/c++/14/stdlib.h:
 
 /usr/include/x86_64-linux-gnu/bits/long-double.h:
-
-/usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h:
-
-/usr/include/x86_64-linux-gnu/bits/mathcalls-narrow.h:

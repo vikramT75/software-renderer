@@ -351,4 +351,13 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
  /usr/include/c++/14/bits/fstream.tcc /usr/include/c++/14/sstream \
  /usr/include/c++/14/bits/sstream.tcc /usr/include/c++/14/array \
  /usr/include/c++/14/compare /mnt/e/awat/swr/src/shading/phong.h \
- /mnt/e/awat/swr/src/shading/texture.h /usr/include/c++/14/iostream
+ /mnt/e/awat/swr/src/shading/texture.h /usr/include/c++/14/iostream \
+ /mnt/e/awat/swr/src/shading/../third_party/stb_image.h \
+ /usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h \
+ /usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h \
+ /usr/include/limits.h /usr/include/x86_64-linux-gnu/bits/posix1_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/local_lim.h \
+ /usr/include/linux/limits.h \
+ /usr/include/x86_64-linux-gnu/bits/posix2_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/xopen_lim.h \
+ /usr/include/x86_64-linux-gnu/bits/uio_lim.h /usr/include/assert.h

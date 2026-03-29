@@ -30,9 +30,7 @@ int main(int argc, char *argv[])
     Texture diffuse;
     try
     {
-        diffuse.loadBMP("assets/textures/cube.bmp");
-        std::cout << "Texture loaded: "
-                  << diffuse.width << "x" << diffuse.height << "\n";
+        diffuse.load("assets/textures/gabagool.jpg"); // rename to .png/.jpg freely
     }
     catch (const std::exception &e)
     {

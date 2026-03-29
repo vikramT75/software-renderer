@@ -4,11 +4,13 @@
 #include <cstdint>
 #include <string>
 #include <stdexcept>
-#include <fstream>
 #include <vector>
 #include <cmath>
 #include <algorithm>
 #include <iostream>
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "../third_party/stb_image.h"
 
 struct Texture
 {
@@ -16,97 +18,44 @@ struct Texture
     int height = 0;
     bool loaded = false;
 
-    void loadBMP(const std::string &path)
+    // Loads BMP, PNG, JPG, TGA, GIF — anything stb_image supports.
+    void load(const std::string &path)
     {
-        std::ifstream f(path, std::ios::binary);
-        if (!f)
-            throw std::runtime_error("Texture: cannot open " + path);
+        if (m_pixels)
+            stbi_image_free(m_pixels);
 
-        auto read32s = [&]() -> int32_t
+        int channels;
+        // Force 4 channels (RGBA) regardless of source format
+        m_pixels = stbi_load(path.c_str(), &width, &height, &channels, 4);
+
+        if (!m_pixels)
+            throw std::runtime_error("Texture: cannot load " + path + " — " + stbi_failure_reason());
+
+        std::cout << "Texture loaded: " << path << " "
+                  << width << "x" << height
+                  << " channels=" << channels << "\n";
+
+        // Debug: first 4 pixels
+        for (int i = 0; i < 4 && i < width * height; ++i)
         {
-            uint8_t b[4];
-            f.read(reinterpret_cast<char *>(b), 4);
-            return static_cast<int32_t>(b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24));
-        };
-        auto read32u = [&]() -> uint32_t
-        {
-            uint8_t b[4];
-            f.read(reinterpret_cast<char *>(b), 4);
-            return b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
-        };
-        auto read16u = [&]() -> uint16_t
-        {
-            uint8_t b[2];
-            f.read(reinterpret_cast<char *>(b), 2);
-            return b[0] | (b[1] << 8);
-        };
-
-        // File header
-        uint8_t sig[2];
-        f.read(reinterpret_cast<char *>(sig), 2);
-        if (sig[0] != 'B' || sig[1] != 'M')
-            throw std::runtime_error("Texture: not a BMP: " + path);
-
-        read32u(); // file size
-        read16u();
-        read16u();                        // reserved
-        uint32_t pixelOffset = read32u(); // offset to pixels
-
-        // DIB header
-        read32u(); // dib size
-        int32_t w = read32s();
-        int32_t h = read32s(); // negative = top-down
-        read16u();             // planes
-        uint16_t bpp = read16u();
-        uint32_t compress = read32u();
-
-        if (compress != 0)
-            throw std::runtime_error("Texture: compressed BMP not supported");
-        if (bpp != 24 && bpp != 32)
-            throw std::runtime_error("Texture: only 24/32-bit BMP supported");
-
-        bool topDown = (h < 0);
-        width = std::abs(w);
-        height = std::abs(h);
-
-        int bytesPerPixel = bpp / 8;
-        int rowSize = (width * bytesPerPixel + 3) & ~3;
-
-        m_pixels.resize(width * height);
-        f.seekg(pixelOffset, std::ios::beg);
-
-        std::vector<uint8_t> row(rowSize);
-        for (int fileRow = 0; fileRow < height; ++fileRow)
-        {
-            f.read(reinterpret_cast<char *>(row.data()), rowSize);
-            // top-down BMP: fileRow 0 = image top (y=0)
-            // bottom-up BMP: fileRow 0 = image bottom (y=height-1)
-            int imgY = topDown ? fileRow : (height - 1 - fileRow);
-
-            for (int x = 0; x < width; ++x)
-            {
-                uint8_t *px = row.data() + x * bytesPerPixel;
-                uint8_t b = px[0], g = px[1], r = px[2];
-                uint8_t a = (bpp == 32) ? px[3] : 255;
-                m_pixels[imgY * width + x] =
-                    (uint32_t(a) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | b;
-            }
-        }
-
-        // Debug
-        std::cout << "BMP loaded: " << width << "x" << height
-                  << " bpp=" << bpp
-                  << (topDown ? " top-down" : " bottom-up") << "\n";
-        for (int i = 0; i < 4; ++i)
-        {
-            uint32_t p = m_pixels[i];
+            uint8_t *p = m_pixels + i * 4;
             std::cout << "  Texel " << i << ": "
-                      << "R=" << ((p >> 16) & 0xFF) << " "
-                      << "G=" << ((p >> 8) & 0xFF) << " "
-                      << "B=" << ((p) & 0xFF) << "\n";
+                      << "R=" << (int)p[0] << " "
+                      << "G=" << (int)p[1] << " "
+                      << "B=" << (int)p[2] << " "
+                      << "A=" << (int)p[3] << "\n";
         }
 
         loaded = true;
+    }
+
+    // Keep loadBMP as an alias so existing code doesn't break
+    void loadBMP(const std::string &path) { load(path); }
+
+    ~Texture()
+    {
+        if (m_pixels)
+            stbi_image_free(m_pixels);
     }
 
     uint32_t sampleNearest(float u, float v) const
@@ -115,7 +64,7 @@ struct Texture
         v = v - std::floor(v);
         int x = MathUtils::clamp((int)(u * width), 0, width - 1);
         int y = MathUtils::clamp((int)(v * height), 0, height - 1);
-        return m_pixels[y * width + x];
+        return texelAt(x, y);
     }
 
     uint32_t sampleBilinear(float u, float v) const
@@ -130,17 +79,17 @@ struct Texture
         int y1 = std::min(y0 + 1, height - 1);
         float tx = fx - x0, ty = fy - y0;
 
-        uint32_t c00 = m_pixels[y0 * width + x0];
-        uint32_t c10 = m_pixels[y0 * width + x1];
-        uint32_t c01 = m_pixels[y1 * width + x0];
-        uint32_t c11 = m_pixels[y1 * width + x1];
+        uint32_t c00 = texelAt(x0, y0);
+        uint32_t c10 = texelAt(x1, y0);
+        uint32_t c01 = texelAt(x0, y1);
+        uint32_t c11 = texelAt(x1, y1);
 
         auto bilerp = [&](int shift) -> uint8_t
         {
-            auto u = [shift](uint32_t c)
+            auto unpack = [shift](uint32_t c)
             { return ((c >> shift) & 0xFF) / 255.f; };
-            float top = u(c00) + (u(c10) - u(c00)) * tx;
-            float bot = u(c01) + (u(c11) - u(c01)) * tx;
+            float top = unpack(c00) + (unpack(c10) - unpack(c00)) * tx;
+            float bot = unpack(c01) + (unpack(c11) - unpack(c01)) * tx;
             return (uint8_t)((top + (bot - top) * ty) * 255.f);
         };
 
@@ -152,5 +101,15 @@ struct Texture
     Texture &operator=(const Texture &) = delete;
 
 private:
-    std::vector<uint32_t> m_pixels;
+    uint8_t *m_pixels = nullptr; // RGBA8, owned by stb_image
+
+    // Read a texel and pack to ARGB8888
+    inline uint32_t texelAt(int x, int y) const
+    {
+        uint8_t *p = m_pixels + (y * width + x) * 4;
+        return (0xFF000000) | (uint32_t(p[0]) << 16) // R
+               | (uint32_t(p[1]) << 8)               // G
+               | (uint32_t(p[2]));                   // B
+        // p[3] is alpha — ignored for now, wire in when transparency is needed
+    }
 };
