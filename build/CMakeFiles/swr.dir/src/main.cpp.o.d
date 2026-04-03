@@ -303,12 +303,17 @@ CMakeFiles/swr.dir/src/main.cpp.o: /mnt/e/awat/swr/src/main.cpp \
  /mnt/e/awat/swr/src/core/../rasterizer/rasterizer.h \
  /mnt/e/awat/swr/src/core/../rasterizer/barycentric.h \
  /mnt/e/awat/swr/src/core/../rasterizer/../shading/shader.h \
- /mnt/e/awat/swr/src/scene/camera.h \
- /mnt/e/awat/swr/src/scene/../math/math_utils.h \
- /mnt/e/awat/swr/src/scene/transform.h /mnt/e/awat/swr/src/scene/light.h \
- /mnt/e/awat/swr/src/loaders/obj_loader.h /usr/include/c++/14/fstream \
- /usr/include/c++/14/istream /usr/include/c++/14/ios \
- /usr/include/c++/14/bits/ios_base.h /usr/include/c++/14/ext/atomicity.h \
+ /mnt/e/awat/swr/src/core/../scene/scene.h \
+ /mnt/e/awat/swr/src/core/../scene/camera.h \
+ /mnt/e/awat/swr/src/core/../scene/../math/math_utils.h \
+ /mnt/e/awat/swr/src/core/../scene/light.h \
+ /mnt/e/awat/swr/src/core/../scene/entity.h \
+ /mnt/e/awat/swr/src/core/../scene/transform.h \
+ /mnt/e/awat/swr/src/core/../scene/material.h \
+ /mnt/e/awat/swr/src/core/../scene/../loaders/obj_loader.h \
+ /usr/include/c++/14/fstream /usr/include/c++/14/istream \
+ /usr/include/c++/14/ios /usr/include/c++/14/bits/ios_base.h \
+ /usr/include/c++/14/ext/atomicity.h \
  /usr/include/x86_64-linux-gnu/c++/14/bits/gthr.h \
  /usr/include/x86_64-linux-gnu/c++/14/bits/gthr-default.h \
  /usr/include/pthread.h /usr/include/sched.h \

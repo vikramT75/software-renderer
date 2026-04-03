@@ -1,13 +1,12 @@
 #include "platform/sdl_window.h"
 #include "core/renderer.h"
-#include "core/shadow_map.h"
-#include "scene/camera.h"
-#include "scene/transform.h"
-#include "scene/light.h"
-#include "math/math_utils.h"
-#include "loaders/obj_loader.h"
+#include "scene/scene.h"
+#include "scene/entity.h"
+#include "scene/material.h"
 #include "shading/pbr.h"
 #include "shading/texture.h"
+#include "loaders/obj_loader.h"
+#include "math/math_utils.h"
 #include <iostream>
 
 int main(int argc, char *argv[])
@@ -18,35 +17,36 @@ int main(int argc, char *argv[])
     SDLWindow window("swr — software renderer", WIDTH, HEIGHT);
     Renderer renderer(WIDTH, HEIGHT);
 
-    Camera camera;
-    camera.position = {0.f, 3.f, 6.f};
-    camera.yaw = -MathUtils::HALF_PI;
-    camera.pitch = MathUtils::toRadians(-20.f);
-    camera.fovY = MathUtils::toRadians(60.f);
-    camera.aspect = static_cast<float>(WIDTH) / HEIGHT;
-    camera.zNear = 0.1f;
-    camera.zFar = 100.f;
-    camera.moveSpeed = 3.f;
-    camera.lookSpeed = 0.003f;
+    // =======================================================================
+    // Scene setup — all data lives here
+    // =======================================================================
+    Scene scene;
 
-    // -----------------------------------------------------------------------
-    // Lights
-    // -----------------------------------------------------------------------
-    LightList lightList;
+    // --- Camera ---
+    scene.camera.position = {0.f, 3.f, 6.f};
+    scene.camera.yaw = -MathUtils::HALF_PI;
+    scene.camera.pitch = MathUtils::toRadians(-20.f);
+    scene.camera.fovY = MathUtils::toRadians(60.f);
+    scene.camera.aspect = static_cast<float>(WIDTH) / HEIGHT;
+    scene.camera.zNear = 0.1f;
+    scene.camera.zFar = 100.f;
+    scene.camera.moveSpeed = 3.f;
+    scene.camera.lookSpeed = 0.003f;
 
+    // --- Lights ---
     Light keyLight;
     keyLight.type = LightType::Directional;
     keyLight.direction = Vec3{-1.f, -1.f, -1.f}.normalized();
     keyLight.color = {1.f, 1.f, 1.f};
     keyLight.intensity = 2.f;
-    lightList.add(keyLight);
+    scene.lights.add(keyLight);
 
     Light fillLight;
     fillLight.type = LightType::Directional;
     fillLight.direction = Vec3{1.f, -0.5f, 0.f}.normalized();
     fillLight.color = {1.f, 1.f, 1.f};
     fillLight.intensity = 0.5f;
-    lightList.add(fillLight);
+    scene.lights.add(fillLight);
 
     Light pointLight;
     pointLight.type = LightType::Point;
@@ -55,20 +55,19 @@ int main(int argc, char *argv[])
     pointLight.attConstant = 1.f;
     pointLight.attLinear = 0.5f;
     pointLight.attQuadratic = 0.8f;
-    lightList.add(pointLight);
+    scene.lights.add(pointLight);
 
-    // -----------------------------------------------------------------------
-    // Shadow map — key light only
-    // -----------------------------------------------------------------------
-    ShadowMap shadowMap;
-    shadowMap.width = 1024;
-    shadowMap.height = 1024;
-    shadowMap.bias = 0.012f;
-    shadowMap.setup(keyLight.direction, {0.f, 0.f, 0.f}, 8.f, 0.1f, 30.f);
+    // --- Shadow map ---
+    scene.shadowMap.width = 1024;
+    scene.shadowMap.height = 1024;
+    scene.shadowMap.bias = 0.012f;
+    scene.shadowMap.setup(keyLight.direction, {0.f, 0.f, 0.f}, 8.f, 0.1f, 30.f);
 
-    // -----------------------------------------------------------------------
+    // =======================================================================
+    // Resources — owned by main(), referenced by entities via pointers
+    // =======================================================================
+
     // Textures
-    // -----------------------------------------------------------------------
     Texture cubeAlbedo;
     try
     {
@@ -79,12 +78,8 @@ int main(int argc, char *argv[])
         std::cerr << "Texture: " << e.what() << "\n";
     }
 
-    // -----------------------------------------------------------------------
-    // Shaders
-    // -----------------------------------------------------------------------
+    // Shaders (hold material properties)
     PBRShader cubePBR;
-    cubePBR.lights = &lightList;
-    cubePBR.shadowMap = &shadowMap;
     cubePBR.albedo = {1.f, 1.f, 1.f};
     cubePBR.metallic = 0.3f;
     cubePBR.roughness = 0.5f;
@@ -92,16 +87,23 @@ int main(int argc, char *argv[])
     cubePBR.albedoMap = cubeAlbedo.loaded ? &cubeAlbedo : nullptr;
 
     PBRShader groundPBR;
-    groundPBR.lights = &lightList;
-    groundPBR.shadowMap = &shadowMap;
     groundPBR.albedo = {0.4f, 0.38f, 0.35f};
     groundPBR.metallic = 0.f;
     groundPBR.roughness = 0.85f;
     groundPBR.ao = 1.f;
 
-    // -----------------------------------------------------------------------
+    // Materials (wrap shaders + render state)
+    Material cubeMat;
+    cubeMat.shader = &cubePBR;
+    cubeMat.cullMode = CullMode::Back;
+    cubeMat.castsShadow = true;
+
+    Material groundMat;
+    groundMat.shader = &groundPBR;
+    groundMat.cullMode = CullMode::None;
+    groundMat.castsShadow = false;
+
     // Meshes
-    // -----------------------------------------------------------------------
     Mesh cubeMesh, groundMesh;
     bool hasCube = false, hasGround = false;
     try
@@ -126,12 +128,27 @@ int main(int argc, char *argv[])
     std::cout << "hasCube=" << hasCube << " verts=" << cubeMesh.vertices.size() << "\n";
     std::cout << "hasGround=" << hasGround << " verts=" << groundMesh.vertices.size() << "\n";
 
-    // Cube sits on ground — original cube.obj verts in [0,1] so y=0 puts bottom on ground
-    Transform cubeTransform;
-    cubeTransform.position = {0.f, 1.f, 0.f};
+    // =======================================================================
+    // Entities — bind mesh + material + transform
+    // =======================================================================
+    Entity cube;
+    cube.name = "cube";
+    cube.mesh = hasCube ? &cubeMesh : nullptr;
+    cube.material = &cubeMat;
+    cube.transform.position = {0.f, 1.f, 0.f};
 
-    Transform groundTransform; // identity
+    Entity ground;
+    ground.name = "ground";
+    ground.mesh = hasGround ? &groundMesh : nullptr;
+    ground.material = &groundMat;
+    // ground.transform is identity — default position
 
+    scene.entities.push_back(cube);
+    scene.entities.push_back(ground);
+
+    // =======================================================================
+    // Game loop
+    // =======================================================================
     float angle = 0.f;
     uint32_t last = SDL_GetTicks();
 
@@ -141,60 +158,26 @@ int main(int argc, char *argv[])
         float dt = (now - last) / 1000.f;
         last = now;
 
+        // Animate cube
         angle += 1.5f * dt;
-        cubeTransform.rotation.y = angle;
-        cubeTransform.rotation.x = angle * 0.4f;
+        scene.entities[0].transform.rotation.y = angle;
+        scene.entities[0].transform.rotation.x = angle * 0.4f;
 
-        // Orbit point light above ground
-        lightList.lights[2].position = {
+        // Orbit point light
+        scene.lights.lights[2].position = {
             std::cos(angle * 1.3f) * 2.f,
             1.5f,
             std::sin(angle * 1.3f) * 2.f};
 
+        // Update camera from input
         const InputState &in = window.input();
-        camera.update(dt,
-                      in.w, in.s, in.a, in.d,
-                      in.e, in.q, in.shift,
-                      in.mouseDX, in.mouseDY);
+        scene.camera.update(dt,
+                            in.w, in.s, in.a, in.d,
+                            in.e, in.q, in.shift,
+                            in.mouseDX, in.mouseDY);
 
-        cubePBR.cameraPos = camera.position;
-        groundPBR.cameraPos = camera.position;
-
-        Mat4 cubeModel = cubeTransform.matrix();
-        Mat4 groundModel = groundTransform.matrix();
-        Mat4 view = camera.view();
-        Mat4 proj = camera.projection();
-
-        // -------------------------------------------------------------------
-        // Pass 1 — shadow pass
-        // -------------------------------------------------------------------
-        renderer.setModel(cubeModel);
-        renderer.beginShadowPass(shadowMap);
-        if (hasCube)
-            renderer.drawTriangles(cubeMesh.vertices, cubeMesh.indices, 0);
-        renderer.endShadowPass();
-
-        // -------------------------------------------------------------------
-        // Pass 2 — main pass
-        // -------------------------------------------------------------------
-        renderer.beginFrame(0xFF1a1a2e);
-
-        // Cube
-        renderer.cullMode = CullMode::Back;
-        renderer.activeShader = &cubePBR;
-        renderer.setMVP(cubeModel, view, proj);
-        if (hasCube)
-            renderer.drawTriangles(cubeMesh.vertices, cubeMesh.indices, 0);
-
-        // Ground — no culling so winding doesn't matter
-        renderer.cullMode = CullMode::None;
-        renderer.activeShader = &groundPBR;
-        renderer.setMVP(groundModel, view, proj);
-        if (hasGround)
-            renderer.drawTriangles(groundMesh.vertices, groundMesh.indices, 0);
-        renderer.cullMode = CullMode::Back;
-
-        renderer.endFrame();
+        // One call renders the entire scene
+        renderer.render(scene);
         window.present(renderer.pixelData());
     }
 

@@ -8,6 +8,7 @@
 #include "../pipeline/clipping.h"
 #include "../rasterizer/rasterizer.h"
 #include "../shading/shader.h"
+#include "../scene/scene.h"
 #include "../math/mat4.h"
 #include <vector>
 #include <cstdint>
@@ -125,6 +126,70 @@ public:
     }
 
     void endFrame() {}
+
+    // -----------------------------------------------------------------------
+    // Scene-based rendering — replaces manual per-entity calls in main.cpp.
+    // Consumes a pure-data Scene and produces a complete frame.
+    // -----------------------------------------------------------------------
+    void render(Scene &scene)
+    {
+        Mat4 view = scene.camera.view();
+        Mat4 proj = scene.camera.projection();
+
+        // ── Shadow pass ─────────────────────────────────────────────────
+        bool shadowStarted = false;
+        for (const auto &entity : scene.entities)
+        {
+            if (!entity.mesh || !entity.material)
+                continue;
+            if (!entity.material->castsShadow)
+                continue;
+
+            Mat4 model = entity.transform.matrix();
+            setModel(model);
+
+            if (!shadowStarted)
+            {
+                beginShadowPass(scene.shadowMap);
+                shadowStarted = true;
+            }
+            else
+            {
+                // Update shadow MVP for this entity
+                m_shadowMVP = m_shadowMap->lightSpaceMatrix() * model;
+            }
+
+            drawTriangles(entity.mesh->vertices, entity.mesh->indices, 0);
+        }
+        if (shadowStarted)
+            endShadowPass();
+
+        // ── Main pass ───────────────────────────────────────────────────
+        beginFrame(scene.clearColor);
+
+        for (auto &entity : scene.entities)
+        {
+            if (!entity.mesh || !entity.material)
+                continue;
+
+            Shader *shader = entity.material->shader;
+
+            // Inject per-frame state into the shader
+            if (shader)
+                shader->setFrameState(scene.camera.position,
+                                      &scene.lights,
+                                      &scene.shadowMap);
+
+            cullMode = entity.material->cullMode;
+            activeShader = shader;
+
+            Mat4 model = entity.transform.matrix();
+            setMVP(model, view, proj);
+            drawTriangles(entity.mesh->vertices, entity.mesh->indices, 0);
+        }
+
+        endFrame();
+    }
 
     const uint32_t *pixelData() const { return m_pixels.data(); }
     int width() const { return m_width; }

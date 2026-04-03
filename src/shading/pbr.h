@@ -22,6 +22,15 @@ struct PBRShader : Shader
     const Texture *roughnessMap = nullptr; // R channel
     const Texture *metallicMap = nullptr;  // R channel
 
+    void setFrameState(const Vec3& camPos,
+                       const LightList* lts,
+                       const ShadowMap* sm) override
+    {
+        cameraPos = camPos;
+        lights = lts;
+        shadowMap = sm;
+    }
+
     uint32_t shade(const FragmentInput &frag) const override
     {
         if (!lights || lights->lights.empty())
