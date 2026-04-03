@@ -21,13 +21,21 @@ inline float intersectPlane(const Vec4 &a, const Vec4 &b,
 inline ClipVertex lerpClip(const ClipVertex &a, const ClipVertex &b, float t)
 {
     ClipVertex out;
+
     out.clip.x = a.clip.x + (b.clip.x - a.clip.x) * t;
     out.clip.y = a.clip.y + (b.clip.y - a.clip.y) * t;
     out.clip.z = a.clip.z + (b.clip.z - a.clip.z) * t;
     out.clip.w = a.clip.w + (b.clip.w - a.clip.w) * t;
+
+    //  World positions
+    out.worldPos.x = a.worldPos.x + (b.worldPos.x - a.worldPos.x) * t;
+    out.worldPos.y = a.worldPos.y + (b.worldPos.y - a.worldPos.y) * t;
+    out.worldPos.z = a.worldPos.z + (b.worldPos.z - a.worldPos.z) * t;
+
     out.normal.x = a.normal.x + (b.normal.x - a.normal.x) * t;
     out.normal.y = a.normal.y + (b.normal.y - a.normal.y) * t;
     out.normal.z = a.normal.z + (b.normal.z - a.normal.z) * t;
+
     out.uv.x = a.uv.x + (b.uv.x - a.uv.x) * t;
     out.uv.y = a.uv.y + (b.uv.y - a.uv.y) * t;
     return out;

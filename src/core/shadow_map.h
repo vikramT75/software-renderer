@@ -107,7 +107,7 @@ struct ShadowMap
         float v = 1.f - (ndcY * 0.5f + 0.5f); // flip Y
 
         float storedDepth = sample(u, v);
-        float fragDepth = ndcZ * 0.5f + 0.5f; // remap to [0,1]
+        float fragDepth = ndcZ; // remap to [0,1]
 
         return fragDepth > storedDepth + bias;
     }

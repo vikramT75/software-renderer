@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     Light pointLight;
     pointLight.type = LightType::Point;
     pointLight.color = {1.f, 1.f, 1.f};
-    pointLight.intensity = 3.f;
+    pointLight.intensity = 0.f;
     pointLight.attConstant = 1.f;
     pointLight.attLinear = 0.5f;
     pointLight.attQuadratic = 0.8f;
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
     shadowMap.width = 1024;
     shadowMap.height = 1024;
     shadowMap.bias = 0.012f;
-    shadowMap.setup(keyLight.direction, {0.5f, 0.5f, 0.5f}, 2.f, 0.1f, 30.f);
+    shadowMap.setup(keyLight.direction, {0.f, 0.f, 0.f}, 8.f, 0.1f, 30.f);
 
     // -----------------------------------------------------------------------
     // Textures
@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
 
     // Cube sits on ground — original cube.obj verts in [0,1] so y=0 puts bottom on ground
     Transform cubeTransform;
-    cubeTransform.position = {0.f, 0.f, 0.f};
+    cubeTransform.position = {0.f, 1.f, 0.f};
 
     Transform groundTransform; // identity
 

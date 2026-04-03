@@ -20,9 +20,9 @@ inline void rasterizeTriangle(const Triangle &tri,
                               CullMode cull = CullMode::Back,
                               const Shader *shader = nullptr)
 {
-    const ScreenVertex &v0 = tri.v[0];
-    const ScreenVertex &v1 = tri.v[1];
-    const ScreenVertex &v2 = tri.v[2];
+    ScreenVertex v0 = tri.v[0];
+    ScreenVertex v1 = tri.v[1];
+    ScreenVertex v2 = tri.v[2];
 
     float area2 = edgeFunction(v0.sx, v0.sy, v1.sx, v1.sy, v2.sx, v2.sy);
 
@@ -32,6 +32,12 @@ inline void rasterizeTriangle(const Triangle &tri,
         return;
     if (area2 == 0.f)
         return;
+
+    if (area2 < 0.f && cull == CullMode::None)
+    {
+        std::swap(v1, v2);
+        area2 = -area2;
+    }
 
     int minX = std::max(0, (int)std::floor(std::min({v0.sx, v1.sx, v2.sx})));
     int maxX = std::min(fb.width - 1, (int)std::ceil(std::max({v0.sx, v1.sx, v2.sx})));
