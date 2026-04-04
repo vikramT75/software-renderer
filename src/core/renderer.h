@@ -66,10 +66,10 @@ class Renderer
 
                     Vec3 color = scene.environmentMap->sampleSpherical(dir);
 
-                    // Simple tone mapping & Gamma correction
-                    uint8_t r = (uint8_t)(std::pow(color.x / (color.x + 1.f), 1.f / 2.2f) * 255);
-                    uint8_t g = (uint8_t)(std::pow(color.y / (color.y + 1.f), 1.f / 2.2f) * 255);
-                    uint8_t b = (uint8_t)(std::pow(color.z / (color.z + 1.f), 1.f / 2.2f) * 255);
+                    // Simple tone mapping & Gamma correction approx with sqrt
+                    uint8_t r = (uint8_t)(std::sqrt(color.x / (color.x + 1.f)) * 255.f);
+                    uint8_t g = (uint8_t)(std::sqrt(color.y / (color.y + 1.f)) * 255.f);
+                    uint8_t b = (uint8_t)(std::sqrt(color.z / (color.z + 1.f)) * 255.f);
                     m_pixels[y * m_width + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
                 }
             }
@@ -151,14 +151,14 @@ class Renderer
 
     void drawTriangles(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices, uint32_t color)
     {
-        for (size_t i = 0; i + 2 < indices.size(); i += 3)
+        if (m_inShadowPass)
         {
-            ClipVertex cv[3];
-            for (int j = 0; j < 3; ++j)
+            for (size_t i = 0; i + 2 < indices.size(); i += 3)
             {
-                const Vertex &v = vertices[indices[i + j]];
-                if (m_inShadowPass)
+                ClipVertex cv[3];
+                for (int j = 0; j < 3; ++j)
                 {
+                    const Vertex &v = vertices[indices[i + j]];
                     cv[j].clip = m_shadowMVP * Vec4(v.position, 1.f);
                     Vec4 wp = m_model * Vec4(v.position, 1.f);
                     cv[j].worldPos = {wp.x, wp.y, wp.z};
@@ -166,8 +166,17 @@ class Renderer
                     cv[j].uv = v.uv;
                     cv[j].tangent = v.tangent;
                 }
-                else
+                submitClipped(cv, color);
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i + 2 < indices.size(); i += 3)
+            {
+                ClipVertex cv[3];
+                for (int j = 0; j < 3; ++j)
                 {
+                    const Vertex &v = vertices[indices[i + j]];
                     cv[j].clip = m_mvp * Vec4(v.position, 1.f);
                     Vec4 wp = m_model * Vec4(v.position, 1.f);
                     cv[j].worldPos = {wp.x, wp.y, wp.z};
@@ -177,8 +186,8 @@ class Renderer
                     cv[j].tangent = {wt.x, wt.y, wt.z};
                     cv[j].uv = v.uv;
                 }
+                submitClipped(cv, color);
             }
-            submitClipped(cv, color);
         }
     }
 
@@ -198,19 +207,23 @@ class Renderer
 
     void submitClipped(const ClipVertex cv[3], uint32_t color)
     {
-        std::vector<ClipVertex> poly = clipTriangle(cv);
-        if (poly.size() < 3)
+        ClipPolygon poly = clipTriangle(cv);
+        if (poly.count < 3)
             return;
-        for (size_t i = 1; i + 1 < poly.size(); ++i)
+        
+        if (m_inShadowPass)
         {
-            if (m_inShadowPass)
-                rasterizeShadow(poly[0], poly[i], poly[i + 1], *m_shadowMap);
-            else
+            for (int i = 1; i + 1 < poly.count; ++i)
+                rasterizeShadow(poly.verts[0], poly.verts[i], poly.verts[i + 1], *m_shadowMap);
+        }
+        else
+        {
+            for (int i = 1; i + 1 < poly.count; ++i)
             {
                 Triangle tri;
-                tri.v[0] = toScreen(poly[0], m_width, m_height);
-                tri.v[1] = toScreen(poly[i], m_width, m_height);
-                tri.v[2] = toScreen(poly[i + 1], m_width, m_height);
+                tri.v[0] = toScreen(poly.verts[0], m_width, m_height);
+                tri.v[1] = toScreen(poly.verts[i], m_width, m_height);
+                tri.v[2] = toScreen(poly.verts[i + 1], m_width, m_height);
                 tri.color = color;
                 rasterizeTriangle(tri, m_fb, m_db, cullMode, activeShader);
             }

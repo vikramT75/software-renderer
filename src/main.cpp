@@ -1,6 +1,5 @@
 #include "core/asset_manager.h"
 #include "core/renderer.h"
-#include "loaders/obj_loader.h"
 #include "math/math_utils.h"
 #include "platform/sdl_window.h"
 #include "scene/entity.h"
@@ -8,9 +7,11 @@
 #include "scene/scene.h"
 #include "shading/pbr.h"
 #include "shading/texture.h"
-#include <iostream>
 #include <string>
 #include <vector>
+
+// Define the static member here to satisfy the linker
+DebugMode Shader::globalDebugMode = DebugMode::None;
 
 int main(int, char *[])
 {
@@ -58,7 +59,7 @@ int main(int, char *[])
     scene.shadowMap.bias = 0.012f;
     scene.shadowMap.setup(key.direction, {0.f, 0.f, 0.f}, 12.f, 0.1f, 40.f);
 
-    // --- NEW: IBL Setup ---
+    // --- IBL Setup ---
     scene.environmentMap = assets.getTexture("assets/textures/skybox.jpg");
     Texture *irradiance = assets.getIrradianceMap("assets/textures/skybox.jpg");
 
@@ -156,6 +157,8 @@ int main(int, char *[])
         last = now;
         angle += 1.5f * dt;
         const uint8_t *keys = SDL_GetKeyboardState(nullptr);
+
+        // Debug mode toggles
         if (keys[SDL_SCANCODE_1])
             Shader::globalDebugMode = DebugMode::None;
         if (keys[SDL_SCANCODE_2])
@@ -167,8 +170,11 @@ int main(int, char *[])
         if (keys[SDL_SCANCODE_5])
             Shader::globalDebugMode = DebugMode::Tangents;
 
+        // Flashlight logic
         scene.lights.lights[2].position = scene.camera.position;
         scene.lights.lights[2].intensity = keys[SDL_SCANCODE_F] ? 5.0f : 0.0f;
+
+        // Animations
         center->transform.rotation.y = angle;
         center->transform.rotation.x = angle * 0.5f;
         for (int i = 0; i < 3; ++i)
@@ -178,8 +184,10 @@ int main(int, char *[])
                                                std::sin(off) * 2.5f};
             orbiters[i]->transform.rotation.x += 1.0f * dt;
         }
+
         const InputState &in = window.input();
         scene.camera.update(dt, in.w, in.s, in.a, in.d, in.e, in.q, in.shift, in.mouseDX, in.mouseDY);
+
         renderer.render(scene);
         window.present(renderer.pixelData());
     }

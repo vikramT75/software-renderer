@@ -85,6 +85,11 @@ inline void rasterizeTriangle(const Triangle &tri,
                     (b.w0 * v0.uv.x + b.w1 * v1.uv.x + b.w2 * v2.uv.x) * w,
                     (b.w0 * v0.uv.y + b.w1 * v1.uv.y + b.w2 * v2.uv.y) * w,
                 };
+                frag.tangent = {
+                    (b.w0 * v0.tangent.x + b.w1 * v1.tangent.x + b.w2 * v2.tangent.x) * w,
+                    (b.w0 * v0.tangent.y + b.w1 * v1.tangent.y + b.w2 * v2.tangent.y) * w,
+                    (b.w0 * v0.tangent.z + b.w1 * v1.tangent.z + b.w2 * v2.tangent.z) * w,
+                };
                 frag.depth = z;
 
                 color = shader->shade(frag);

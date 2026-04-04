@@ -31,19 +31,11 @@ struct Scene
 
     void updateHierarchy()
     {
-        Mat4 identity;
-        for (int i = 0; i < 4; ++i)
-        {
-            for (int j = 0; j < 4; ++j)
-            {
-                identity.m[i][j] = (i == j) ? 1.0f : 0.0f;
-            }
-        }
         for (auto &e : entities)
         {
             if (e->parent == nullptr)
             {
-                e->updateWorldTransform(identity);
+                e->updateWorldTransform(Mat4::identity());
             }
         }
     }

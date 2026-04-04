@@ -37,49 +37,46 @@ inline ClipVertex lerpClip(const ClipVertex &a, const ClipVertex &b, float t)
 
     out.uv.x = a.uv.x + (b.uv.x - a.uv.x) * t;
     out.uv.y = a.uv.y + (b.uv.y - a.uv.y) * t;
+
+    out.tangent.x = a.tangent.x + (b.tangent.x - a.tangent.x) * t;
+    out.tangent.y = a.tangent.y + (b.tangent.y - a.tangent.y) * t;
+    out.tangent.z = a.tangent.z + (b.tangent.z - a.tangent.z) * t;
+
     return out;
 }
 
-// Clip a polygon (as a list of ClipVertices) against one plane.
-// Plane index:
-//   0: w + x >= 0  (left)
-//   1: w - x >= 0  (right)
-//   2: w + y >= 0  (bottom)
-//   3: w - y >= 0  (top)
-//   4: w + z >= 0  (near)
-//   5: w - z >= 0  (far)
-inline std::vector<ClipVertex> clipAgainstPlane(const std::vector<ClipVertex> &poly, int plane)
+// Uses a fixed array to avoid heap allocations.
+struct ClipPolygon {
+    ClipVertex verts[12];
+    int count = 0;
+    void push_back(const ClipVertex& v) { verts[count++] = v; }
+};
+
+// Clip a polygon against one plane.
+inline ClipPolygon clipAgainstPlane(const ClipPolygon &poly, int plane)
 {
-    if (poly.empty())
+    if (poly.count == 0)
         return {};
 
     auto signedDist = [&](const ClipVertex &v) -> float
     {
         switch (plane)
         {
-        case 0:
-            return v.clip.w + v.clip.x;
-        case 1:
-            return v.clip.w - v.clip.x;
-        case 2:
-            return v.clip.w + v.clip.y;
-        case 3:
-            return v.clip.w - v.clip.y;
-        case 4:
-            return v.clip.w + v.clip.z;
-        case 5:
-            return v.clip.w - v.clip.z;
+        case 0: return v.clip.w + v.clip.x;
+        case 1: return v.clip.w - v.clip.x;
+        case 2: return v.clip.w + v.clip.y;
+        case 3: return v.clip.w - v.clip.y;
+        case 4: return v.clip.w + v.clip.z;
+        case 5: return v.clip.w - v.clip.z;
         }
         return 0.f;
     };
 
-    std::vector<ClipVertex> out;
-    out.reserve(poly.size() + 1);
-
-    for (size_t i = 0; i < poly.size(); ++i)
+    ClipPolygon out;
+    for (int i = 0; i < poly.count; ++i)
     {
-        const ClipVertex &cur = poly[i];
-        const ClipVertex &next = poly[(i + 1) % poly.size()];
+        const ClipVertex &cur = poly.verts[i];
+        const ClipVertex &next = poly.verts[(i + 1) % poly.count];
 
         float dc = signedDist(cur);
         float dn = signedDist(next);
@@ -101,17 +98,19 @@ inline std::vector<ClipVertex> clipAgainstPlane(const std::vector<ClipVertex> &p
 }
 
 // Clip a triangle (3 ClipVertices) against all 6 frustum planes.
-// Returns a triangle fan (may produce 0, 1, or more triangles).
-inline std::vector<ClipVertex> clipTriangle(const ClipVertex tri[3])
+inline ClipPolygon clipTriangle(const ClipVertex tri[3])
 {
-    std::vector<ClipVertex> poly = {tri[0], tri[1], tri[2]};
+    ClipPolygon poly;
+    poly.push_back(tri[0]);
+    poly.push_back(tri[1]);
+    poly.push_back(tri[2]);
 
     for (int plane = 0; plane < 6; ++plane)
     {
         poly = clipAgainstPlane(poly, plane);
-        if (poly.empty())
+        if (poly.count == 0)
             return {};
     }
 
-    return poly; // convex polygon — caller fans it into triangles
+    return poly;
 }

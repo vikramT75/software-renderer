@@ -18,6 +18,7 @@ inline ScreenVertex toScreen(const ClipVertex &cv, int width, int height)
     sv.worldPos = cv.worldPos * invW;
     sv.normal = cv.normal * invW;
     sv.uv = cv.uv * invW;
+    sv.tangent = cv.tangent * invW;
 
     return sv;
 }

@@ -27,4 +27,5 @@ struct ScreenVertex {
   Vec3 worldPos; // premultiplied by invW
   Vec3 normal;   // premultiplied by invW
   Vec2 uv;       // premultiplied by invW
+  Vec3 tangent;  // premultiplied by invW
 };

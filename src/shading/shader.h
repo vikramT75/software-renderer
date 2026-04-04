@@ -18,20 +18,20 @@ enum class DebugMode
 
 struct FragmentInput
 {
-    Vec3 position; // World-space position
-    Vec3 normal;   // World-space normal
+    Vec3 position;
+    Vec3 normal;
     Vec2 uv;
-    Vec3 tangent; // World-space tangent
-    float invW;   // For perspective-correct interpolation
-    float depth;  // MISSING MEMBER RE-ADDED
+    Vec3 tangent;
+    float invW;
+    float depth;
 };
 
 struct Shader
 {
-    // Global toggle for the entire engine
-    inline static DebugMode globalDebugMode = DebugMode::None;
+    // Removed 'inline' for older C++ compatibility.
+    // This must now be defined in main.cpp
+    static DebugMode globalDebugMode;
 
-    // Individual override for this specific shader instance
     DebugMode instanceDebugMode = DebugMode::None;
 
     virtual void setFrameState(const Vec3 &camPos, const LightList *lts, const ShadowMap *sm) = 0;
