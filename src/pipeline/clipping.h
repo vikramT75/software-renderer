@@ -11,8 +11,7 @@
 
 // Returns the interpolation factor t where the edge (a→b) crosses the plane.
 // Plane equation: dot(plane_normal, v) = 0 in homogeneous clip space.
-inline float intersectPlane(const Vec4 &a, const Vec4 &b,
-                            float na, float nb) // signed distances
+inline float intersectPlane(const Vec4 &a, const Vec4 &b, float na, float nb) // signed distances
 {
     return na / (na - nb);
 }
@@ -49,8 +48,7 @@ inline ClipVertex lerpClip(const ClipVertex &a, const ClipVertex &b, float t)
 //   3: w - y >= 0  (top)
 //   4: w + z >= 0  (near)
 //   5: w - z >= 0  (far)
-inline std::vector<ClipVertex> clipAgainstPlane(
-    const std::vector<ClipVertex> &poly, int plane)
+inline std::vector<ClipVertex> clipAgainstPlane(const std::vector<ClipVertex> &poly, int plane)
 {
     if (poly.empty())
         return {};

@@ -1,115 +1,101 @@
 #pragma once
-#include "../math/vec2.h"
 #include "../math/math_utils.h"
-#include <cstdint>
-#include <string>
-#include <stdexcept>
-#include <vector>
+#include "../math/vec2.h"
+#include "../math/vec3.h"
 #include <cmath>
-#include <algorithm>
-#include <iostream>
+#include <cstdint>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
+
+#ifndef STBI_INCLUDE_LINE
 #define STB_IMAGE_IMPLEMENTATION
+#define STBI_NO_THREAD_LOCALS
+#endif
 #include "../third_party/stb_image.h"
 
-struct Texture
+class Texture
 {
-    int width = 0;
-    int height = 0;
+  public:
+    int width = 0, height = 0, channels = 0;
+    std::vector<uint32_t> data;
     bool loaded = false;
 
-    // Loads BMP, PNG, JPG, TGA, GIF — anything stb_image supports.
+    ~Texture() = default;
+
     void load(const std::string &path)
     {
-        if (m_pixels)
-            stbi_image_free(m_pixels);
+        stbi_set_flip_vertically_on_load(true);
+        unsigned char *img = stbi_load(path.c_str(), &width, &height, &channels, 4);
 
-        int channels;
-        // Force 4 channels (RGBA) regardless of source format
-        m_pixels = stbi_load(path.c_str(), &width, &height, &channels, 4);
-
-        if (!m_pixels)
-            throw std::runtime_error("Texture: cannot load " + path + " — " + stbi_failure_reason());
-
-        std::cout << "Texture loaded: " << path << " "
-                  << width << "x" << height
-                  << " channels=" << channels << "\n";
-
-        // Debug: first 4 pixels
-        for (int i = 0; i < 4 && i < width * height; ++i)
+        if (!img)
         {
-            uint8_t *p = m_pixels + i * 4;
-            std::cout << "  Texel " << i << ": "
-                      << "R=" << (int)p[0] << " "
-                      << "G=" << (int)p[1] << " "
-                      << "B=" << (int)p[2] << " "
-                      << "A=" << (int)p[3] << "\n";
+            throw std::runtime_error("Failed to load texture: " + path);
         }
 
+        data.resize(width * height);
+        for (int i = 0; i < width * height; ++i)
+        {
+            uint8_t r = img[i * 4 + 0];
+            uint8_t g = img[i * 4 + 1];
+            uint8_t b = img[i * 4 + 2];
+            uint8_t a = img[i * 4 + 3];
+            data[i] = (a << 24) | (r << 16) | (g << 8) | b;
+        }
+
+        stbi_image_free(img);
         loaded = true;
-    }
-
-    // Keep loadBMP as an alias so existing code doesn't break
-    void loadBMP(const std::string &path) { load(path); }
-
-    ~Texture()
-    {
-        if (m_pixels)
-            stbi_image_free(m_pixels);
-    }
-
-    uint32_t sampleNearest(float u, float v) const
-    {
-        u = u - std::floor(u);
-        v = v - std::floor(v);
-        int x = MathUtils::clamp((int)(u * width), 0, width - 1);
-        int y = MathUtils::clamp((int)(v * height), 0, height - 1);
-        return texelAt(x, y);
     }
 
     uint32_t sampleBilinear(float u, float v) const
     {
+        if (!loaded || data.empty())
+            return 0xFFFFFFFF;
+
         u = u - std::floor(u);
         v = v - std::floor(v);
 
-        float fx = u * (width - 1);
-        float fy = v * (height - 1);
-        int x0 = (int)fx, y0 = (int)fy;
+        float x = u * (width - 1);
+        float y = v * (height - 1);
+
+        int x0 = (int)std::floor(x);
+        int y0 = (int)std::floor(y);
         int x1 = std::min(x0 + 1, width - 1);
         int y1 = std::min(y0 + 1, height - 1);
-        float tx = fx - x0, ty = fy - y0;
 
-        uint32_t c00 = texelAt(x0, y0);
-        uint32_t c10 = texelAt(x1, y0);
-        uint32_t c01 = texelAt(x0, y1);
-        uint32_t c11 = texelAt(x1, y1);
+        float dx = x - (float)x0;
+        float dy = y - (float)y0;
 
-        auto bilerp = [&](int shift) -> uint8_t
+        auto getPixel = [&](int px, int py)
         {
-            auto unpack = [shift](uint32_t c)
-            { return ((c >> shift) & 0xFF) / 255.f; };
-            float top = unpack(c00) + (unpack(c10) - unpack(c00)) * tx;
-            float bot = unpack(c01) + (unpack(c11) - unpack(c01)) * tx;
-            return (uint8_t)((top + (bot - top) * ty) * 255.f);
+            uint32_t p = data[py * width + px];
+            return Vec3{(float)((p >> 16) & 0xFF), (float)((p >> 8) & 0xFF), (float)(p & 0xFF)};
         };
 
-        return 0xFF000000 | (uint32_t(bilerp(16)) << 16) | (uint32_t(bilerp(8)) << 8) | uint32_t(bilerp(0));
+        Vec3 p00 = getPixel(x0, y0);
+        Vec3 p10 = getPixel(x1, y0);
+        Vec3 p01 = getPixel(x0, y1);
+        Vec3 p11 = getPixel(x1, y1);
+
+        Vec3 color = p00 * (1.0f - dx) * (1.0f - dy) + p10 * dx * (1.0f - dy) + p01 * (1.0f - dx) * dy + p11 * dx * dy;
+
+        return 0xFF000000 | ((uint8_t)color.x << 16) | ((uint8_t)color.y << 8) | (uint8_t)color.z;
     }
 
-    Texture() = default;
-    Texture(const Texture &) = delete;
-    Texture &operator=(const Texture &) = delete;
-
-private:
-    uint8_t *m_pixels = nullptr; // RGBA8, owned by stb_image
-
-    // Read a texel and pack to ARGB8888
-    inline uint32_t texelAt(int x, int y) const
+    Vec3 sampleSpherical(const Vec3 &direction) const
     {
-        uint8_t *p = m_pixels + (y * width + x) * 4;
-        return (0xFF000000) | (uint32_t(p[0]) << 16) // R
-               | (uint32_t(p[1]) << 8)               // G
-               | (uint32_t(p[2]));                   // B
-        // p[3] is alpha — ignored for now, wire in when transparency is needed
+        if (!loaded || data.empty())
+            return {0.f, 0.f, 0.f};
+
+        Vec3 d = direction.normalized();
+
+        // Revised spherical mapping to prevent inversion
+        // atan2(z, x) is the longitude, asin(y) is the latitude
+        float u = 0.5f - (std::atan2(d.z, d.x) / (2.0f * MathUtils::PI));
+        float v = 0.5f + (std::asin(d.y) / MathUtils::PI);
+
+        uint32_t c = sampleBilinear(u, v);
+        return {((c >> 16) & 0xFF) / 255.f, ((c >> 8) & 0xFF) / 255.f, (c & 0xFF) / 255.f};
     }
 };

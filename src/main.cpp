@@ -58,37 +58,49 @@ int main(int, char *[])
     scene.shadowMap.bias = 0.012f;
     scene.shadowMap.setup(key.direction, {0.f, 0.f, 0.f}, 12.f, 0.1f, 40.f);
 
+    // --- NEW: IBL Setup ---
+    scene.environmentMap = assets.getTexture("assets/textures/skybox.jpg");
+    Texture *irradiance = assets.getIrradianceMap("assets/textures/skybox.jpg");
+
     // --- Shaders & Materials ---
     PBRShader centerPBR;
     centerPBR.albedoMap = assets.getTexture("assets/textures/gabagool.jpg");
     centerPBR.normalMap = assets.getTexture("assets/textures/cube_normal.png");
+    centerPBR.irradianceMap = irradiance;
     centerPBR.metallic = 0.3f;
     centerPBR.roughness = 0.4f;
 
     PBRShader blockPBR;
     blockPBR.albedoMap = assets.getTexture("assets/textures/gospelv1.png");
+    blockPBR.irradianceMap = irradiance;
     blockPBR.metallic = 0.0f;
     blockPBR.roughness = 0.9f;
 
     PBRShader groundPBR;
     groundPBR.albedo = {0.4f, 0.38f, 0.35f};
     groundPBR.roughness = 0.85f;
+    groundPBR.irradianceMap = irradiance;
+
     PBRShader pillarPBR;
     pillarPBR.albedo = {0.35f, 0.3f, 0.3f};
     pillarPBR.roughness = 0.7f;
+    pillarPBR.irradianceMap = irradiance;
 
     PBRShader gold;
     gold.albedo = {1.f, 0.85f, 0.4f};
     gold.metallic = 1.0f;
     gold.roughness = 0.15f;
+    gold.irradianceMap = irradiance;
     PBRShader plastic;
     plastic.albedo = {0.1f, 0.5f, 0.9f};
     plastic.metallic = 0.0f;
     plastic.roughness = 0.1f;
+    plastic.irradianceMap = irradiance;
     PBRShader matte;
     matte.albedo = {0.8f, 0.2f, 0.2f};
     matte.metallic = 0.0f;
     matte.roughness = 0.9f;
+    matte.irradianceMap = irradiance;
 
     Material groundMat = {&groundPBR, CullMode::None, false}, centerMat = {&centerPBR, CullMode::Back, true},
              pillarMat = {&pillarPBR, CullMode::Back, true};
@@ -134,7 +146,7 @@ int main(int, char *[])
     block->material = &blockMat;
     block->transform.position = {0.f, 5.0f, 0.f};
 
-    // --- Loop ---
+    // --- Main Loop ---
     float angle = 0.f;
     uint32_t last = SDL_GetTicks();
     while (window.pollEvents())
