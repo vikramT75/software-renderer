@@ -20,6 +20,7 @@ struct Light
     float attConstant = 1.f;
     float attLinear = 0.09f;
     float attQuadratic = 0.032f;
+    bool castsShadow = false;
 };
 
 // Passed to shaders — owns the light list.
@@ -27,6 +28,12 @@ struct LightList
 {
     std::vector<Light> lights;
 
-    void add(const Light &l) { lights.push_back(l); }
-    void clear() { lights.clear(); }
+    void add(const Light &l)
+    {
+        lights.push_back(l);
+    }
+    void clear()
+    {
+        lights.clear();
+    }
 };

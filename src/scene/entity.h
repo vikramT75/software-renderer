@@ -1,21 +1,43 @@
 #pragma once
-#include "../loaders/obj_loader.h" // Mesh
+#include "../loaders/obj_loader.h"
+#include "../math/mat4.h"
 #include "material.h"
 #include "transform.h"
+#include <memory>
 #include <string>
-
-// Entity = the binding unit that connects geometry, appearance, and placement.
-//
-// Multiple entities can share the same Mesh* and Material* — e.g. 100 trees
-// all pointing to the same mesh data and material, saving RAM.
-//
-// Ownership: Entity does NOT own the Mesh or Material.  The caller owns them
-// and entities hold non-owning pointers.
+#include <vector>
 
 struct Entity
 {
     std::string name;
     Transform transform;
-    const Mesh *mesh = nullptr;   // NOT owned — shared across entities
-    Material *material = nullptr; // NOT owned — can be shared too
+    Mesh *mesh = nullptr;
+    Material *material = nullptr;
+
+    // Hierarchy pointers
+    Entity *parent = nullptr;
+    std::vector<Entity *> children;
+
+    // Cached world-space transform
+    Mat4 worldMatrix;
+
+    // Recursively updates this entity and all its children
+    void updateWorldTransform(const Mat4 &parentWorldMatrix)
+    {
+        worldMatrix = parentWorldMatrix * transform.matrix();
+        for (auto *child : children)
+        {
+            child->updateWorldTransform(worldMatrix);
+        }
+    }
+
+    // Helper to attach a child
+    void addChild(Entity *child)
+    {
+        if (child)
+        {
+            child->parent = this;
+            children.push_back(child);
+        }
+    }
 };

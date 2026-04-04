@@ -61,8 +61,7 @@ struct PhongShader : Shader
         {
             const auto &light = lights->lights[i];
 
-            float shadowMultiplier = (i == 0 && shadowMap) ? shadowMap->shadowFactor(frag.position) : 1.0f;
-
+            float shadowMultiplier = (light.castsShadow && shadowMap) ? shadowMap->shadowFactor(frag.position) : 1.0f;
             Vec3 L;
             float attenuation = 1.f;
             if (light.type == LightType::Directional)

@@ -1,11 +1,13 @@
 #pragma once
 #include "../pipeline/vertex.h"
 #include <array>
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
 
 struct Mesh
 {

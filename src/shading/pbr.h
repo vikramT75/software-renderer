@@ -90,7 +90,7 @@ struct PBRShader : Shader
 
             // PCF Shadow multiplier for Key Light
             float shadowMultiplier = 1.0f;
-            if (i == 0 && shadowMap)
+            if (light.castsShadow && shadowMap)
             {
                 shadowMultiplier = shadowMap->shadowFactor(frag.position);
             }

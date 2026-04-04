@@ -1,21 +1,52 @@
 #pragma once
-#include "camera.h"
-#include "light.h"
-#include "entity.h"
 #include "../core/shadow_map.h"
+#include "camera.h"
+#include "entity.h"
+#include "light.h"
+#include <memory>
+#include <string>
 #include <vector>
-#include <cstdint>
-
-// Scene = pure data container.  Zero rendering logic.
-//
-// Owns the camera, lights, shadow map, and the entity list.
-// The Renderer consumes a const Scene& to produce a frame.
 
 struct Scene
 {
     Camera camera;
     LightList lights;
     ShadowMap shadowMap;
-    std::vector<Entity> entities;
-    uint32_t clearColor = 0xFF1a1a2e;
+    uint32_t clearColor = 0xFF111122; // Dark blue/gray background
+
+    // Ownership of all entities in the scene
+    std::vector<std::unique_ptr<Entity>> entities;
+
+    // Helper to create and track a new entity
+    Entity *createEntity(const std::string &name)
+    {
+        auto e = std::make_unique<Entity>();
+        e->name = name;
+        Entity *ptr = e.get();
+        entities.push_back(std::move(e));
+        return ptr;
+    }
+
+    // Call this once per frame before rendering to calculate all world matrices
+    void updateHierarchy()
+    {
+        // 1. Explicitly create an Identity Matrix (Fix for the invisible scene bug)
+        Mat4 identity;
+        for (int i = 0; i < 4; ++i)
+        {
+            for (int j = 0; j < 4; ++j)
+            {
+                identity.m[i][j] = (i == j) ? 1.0f : 0.0f;
+            }
+        }
+
+        // 2. Propagate transforms starting from root entities (entities with no parent)
+        for (auto &e : entities)
+        {
+            if (e->parent == nullptr)
+            {
+                e->updateWorldTransform(identity);
+            }
+        }
+    }
 };
