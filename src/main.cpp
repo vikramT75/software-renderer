@@ -1,12 +1,12 @@
-#include "platform/sdl_window.h"
 #include "core/renderer.h"
-#include "scene/scene.h"
-#include "scene/entity.h"
-#include "scene/material.h"
-#include "shading/pbr.h"
-#include "shading/texture.h"
 #include "loaders/obj_loader.h"
 #include "math/math_utils.h"
+#include "platform/sdl_window.h"
+#include "scene/entity.h"
+#include "scene/material.h"
+#include "scene/scene.h"
+#include "shading/pbr.h"
+#include "shading/texture.h"
 #include <iostream>
 #include <string>
 
@@ -70,6 +70,7 @@ int main(int, char *[])
 
     // Textures
     Texture centerAlbedo;
+    Texture centerNormal; // Added for Normal Mapping
     Texture blockAlbedo;
 
     try
@@ -80,6 +81,16 @@ int main(int, char *[])
     {
         std::cerr << "Texture: " << e.what() << "\n";
     }
+
+    try
+    {
+        centerNormal.load("assets/textures/cube_normal.png");
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "Texture: " << e.what() << "\n";
+    }
+
     try
     {
         blockAlbedo.load("assets/textures/gospelv1.png");
@@ -98,6 +109,7 @@ int main(int, char *[])
     centerPBR.roughness = 0.5f;
     centerPBR.ao = 1.f;
     centerPBR.albedoMap = centerAlbedo.loaded ? &centerAlbedo : nullptr;
+    centerPBR.normalMap = centerNormal.loaded ? &centerNormal : nullptr; // Assign normal map
 
     PBRShader blockPBR;
     blockPBR.albedo = {0.8f, 0.2f, 0.2f};
@@ -215,8 +227,7 @@ int main(int, char *[])
     // 2-5. Four pillars
     {
         float pDist = 4.0f;
-        Vec3 pillarPos[4] = {
-            {pDist, 2.f, pDist}, {-pDist, 2.f, pDist}, {pDist, 2.f, -pDist}, {-pDist, 2.f, -pDist}};
+        Vec3 pillarPos[4] = {{pDist, 2.f, pDist}, {-pDist, 2.f, pDist}, {pDist, 2.f, -pDist}, {-pDist, 2.f, -pDist}};
         for (int i = 0; i < 4; ++i)
         {
             Entity e;
@@ -243,6 +254,7 @@ int main(int, char *[])
         }
     }
 
+    // 9. Block
     {
         Entity e;
         e.name = "block";
@@ -278,9 +290,7 @@ int main(int, char *[])
             float offsetAngle = angle + (i * MathUtils::TWO_PI / 3.f);
 
             scene.entities[idx].transform.position = {
-                std::cos(offsetAngle) * 2.5f,
-                1.5f + std::sin(angle * 2.f + i) * 0.5f,
-                std::sin(offsetAngle) * 2.5f};
+                std::cos(offsetAngle) * 2.5f, 1.5f + std::sin(angle * 2.f + i) * 0.5f, std::sin(offsetAngle) * 2.5f};
 
             scene.entities[idx].transform.rotation.x += 1.0f * dt;
             scene.entities[idx].transform.rotation.y += 1.5f * dt;
@@ -293,10 +303,7 @@ int main(int, char *[])
 
         // --- Update camera from input ---
         const InputState &in = window.input();
-        scene.camera.update(dt,
-                            in.w, in.s, in.a, in.d,
-                            in.e, in.q, in.shift,
-                            in.mouseDX, in.mouseDY);
+        scene.camera.update(dt, in.w, in.s, in.a, in.d, in.e, in.q, in.shift, in.mouseDX, in.mouseDY);
 
         // --- Render ---
         renderer.render(scene);

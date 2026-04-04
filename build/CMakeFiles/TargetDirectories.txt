@@ -1,7 +1,0 @@
-/mnt/e/awat/swr/build/CMakeFiles/swr.dir
-/mnt/e/awat/swr/build/CMakeFiles/edit_cache.dir
-/mnt/e/awat/swr/build/CMakeFiles/rebuild_cache.dir
-/mnt/e/awat/swr/build/CMakeFiles/list_install_components.dir
-/mnt/e/awat/swr/build/CMakeFiles/install.dir
-/mnt/e/awat/swr/build/CMakeFiles/install/local.dir
-/mnt/e/awat/swr/build/CMakeFiles/install/strip.dir

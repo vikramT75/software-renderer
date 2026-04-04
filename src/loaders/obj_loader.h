@@ -1,11 +1,11 @@
 #pragma once
 #include "../pipeline/vertex.h"
-#include <vector>
-#include <string>
+#include <array>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
-#include <array>
+#include <string>
+#include <vector>
 
 struct Mesh
 {
@@ -14,7 +14,6 @@ struct Mesh
     std::string name;
 };
 
-// Moved to file scope — local structs can't be used as template arguments in GCC 14
 struct FaceVertex
 {
     int vi, ti, ni;
@@ -103,26 +102,41 @@ inline Mesh loadOBJ(const std::string &path)
     {
         const auto &face = faces[fi];
 
-        Vec3 flatNormal = {0.f, 0.f, 0.f};
-        if (normals.empty() || face[0].ni < 0)
-        {
-            Vec3 a = positions[face[0].vi];
-            Vec3 b = positions[face[1].vi];
-            Vec3 c = positions[face[2].vi];
-            flatNormal = (b - a).cross(c - a).normalized();
-        }
+        // 1. Calculate base geometry data for the face
+        Vec3 pos0 = positions[face[0].vi];
+        Vec3 pos1 = positions[face[1].vi];
+        Vec3 pos2 = positions[face[2].vi];
 
+        Vec2 uv0 = (face[0].ti >= 0 && !uvs.empty()) ? uvs[face[0].ti] : Vec2{0.f, 0.f};
+        Vec2 uv1 = (face[1].ti >= 0 && !uvs.empty()) ? uvs[face[1].ti] : Vec2{0.f, 0.f};
+        Vec2 uv2 = (face[2].ti >= 0 && !uvs.empty()) ? uvs[face[2].ti] : Vec2{0.f, 0.f};
+
+        // 2. Compute Flat Normal (fallback)
+        Vec3 flatNormal = (pos1 - pos0).cross(pos2 - pos0).normalized();
+
+        // 3. Compute Tangent (for Normal Mapping)
+        Vec3 edge1 = pos1 - pos0;
+        Vec3 edge2 = pos2 - pos0;
+        Vec2 deltaUV1 = uv1 - uv0;
+        Vec2 deltaUV2 = uv2 - uv0;
+
+        float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y + 1e-7f);
+        Vec3 tangent;
+        tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+        tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+        tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+        tangent = tangent.normalized();
+
+        // 4. Create Vertices
         for (int i = 0; i < 3; ++i)
         {
             const FaceVertex &fv = face[i];
             Vertex v;
             v.position = positions[fv.vi];
-            v.normal = (fv.ni >= 0 && !normals.empty())
-                           ? normals[fv.ni]
-                           : flatNormal;
-            v.uv = (fv.ti >= 0 && !uvs.empty())
-                       ? uvs[fv.ti]
-                       : Vec2{0.f, 0.f};
+            v.normal = (fv.ni >= 0 && !normals.empty()) ? normals[fv.ni] : flatNormal;
+            v.uv = (fv.ti >= 0 && !uvs.empty()) ? uvs[fv.ti] : Vec2{0.f, 0.f};
+            v.tangent = tangent; // Apply calculated tangent
+
             mesh.vertices.push_back(v);
             mesh.indices.push_back(static_cast<uint32_t>(mesh.vertices.size() - 1));
         }

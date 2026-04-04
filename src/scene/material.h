@@ -1,6 +1,6 @@
 #pragma once
-#include "../shading/shader.h"
 #include "../rasterizer/rasterizer.h" // CullMode
+#include "../shading/shader.h"
 
 // Material = binding between a shader instance and per-entity render state.
 //
@@ -13,7 +13,7 @@
 
 struct Material
 {
-    Shader *shader = nullptr;            // NOT owned — PBRShader, PhongShader, etc.
-    CullMode cullMode = CullMode::Back;  // per-material face culling
-    bool castsShadow = true;             // should this material appear in shadow pass?
+    Shader *shader = nullptr;           // NOT owned — PBRShader, PhongShader, etc.
+    CullMode cullMode = CullMode::Back; // per-material face culling
+    bool castsShadow = true;            // should this material appear in shadow pass?
 };

@@ -1,7 +1,7 @@
 #pragma once
-#include "transform.h"
-#include "material.h"
 #include "../loaders/obj_loader.h" // Mesh
+#include "material.h"
+#include "transform.h"
 #include <string>
 
 // Entity = the binding unit that connects geometry, appearance, and placement.
@@ -16,6 +16,6 @@ struct Entity
 {
     std::string name;
     Transform transform;
-    const Mesh *mesh = nullptr;      // NOT owned — shared across entities
-    Material *material = nullptr;    // NOT owned — can be shared too
+    const Mesh *mesh = nullptr;   // NOT owned — shared across entities
+    Material *material = nullptr; // NOT owned — can be shared too
 };
