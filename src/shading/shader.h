@@ -2,11 +2,16 @@
 #include "../math/math_utils.h"
 #include "../math/vec3.h"
 #include "../pipeline/vertex.h"
-#include "../scene/light.h"
 #include <algorithm>
 #include <cstdint>
 
-class ShadowMap;
+// Restore the missing CullMode enum
+enum class CullMode
+{
+    None,
+    Back,
+    Front
+};
 
 enum class DebugMode
 {
@@ -28,12 +33,10 @@ struct FragmentInput
     float depth;
 };
 
-// Helper for common shading operations
 struct ShaderUtils
 {
     static uint32_t packColor(const Vec3 &color)
     {
-        // Simple Reinhard tonemapping and gamma 2.2 approximation
         float r = std::sqrt(color.x / (color.x + 1.0f));
         float g = std::sqrt(color.y / (color.y + 1.0f));
         float b = std::sqrt(color.z / (color.z + 1.0f));
@@ -44,6 +47,9 @@ struct ShaderUtils
         return 0xFF000000 | (ir << 16) | (ig << 8) | ib;
     }
 };
+
+class ShadowMap;
+struct LightList;
 
 struct Shader
 {
