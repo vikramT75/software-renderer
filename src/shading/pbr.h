@@ -28,6 +28,7 @@ struct PBRShader : Shader
 
     uint32_t shade(const FragmentInput &frag) const override
     {
+        // --- 1. Debug Visualization ---
         DebugMode activeMode = getActiveMode();
         if (activeMode != DebugMode::None)
         {
@@ -38,7 +39,19 @@ struct PBRShader : Shader
                 dCol = {n.x * 0.5f + 0.5f, n.y * 0.5f + 0.5f, n.z * 0.5f + 0.5f};
             }
             else if (activeMode == DebugMode::UVs)
+            {
                 dCol = {frag.uv.x, frag.uv.y, 0.f};
+            }
+            else if (activeMode == DebugMode::Tangents)
+            {
+                Vec3 t = frag.tangent.normalized();
+                dCol = {t.x * 0.5f + 0.5f, t.y * 0.5f + 0.5f, t.z * 0.5f + 0.5f};
+            }
+            else if (activeMode == DebugMode::WorldPos)
+            {
+                dCol = {std::abs(std::sin(frag.position.x)), std::abs(std::sin(frag.position.y)),
+                        std::abs(std::sin(frag.position.z))};
+            }
             else if (activeMode == DebugMode::Shadows && shadowMap)
             {
                 float s = shadowMap->shadowFactor(frag.position);
@@ -47,6 +60,7 @@ struct PBRShader : Shader
             return ShaderUtils::packColor(dCol);
         }
 
+        // --- 2. Surface Basis & Vectors ---
         Vec3 N = frag.normal.normalized();
         if (normalMap && normalMap->loaded)
         {
@@ -62,6 +76,7 @@ struct PBRShader : Shader
         Vec3 V = (cameraPos - frag.position).normalized();
         Vec3 R = (N * (2.0f * N.dot(V)) - V).normalized();
 
+        // --- 3. Material Sampling ---
         Vec3 baseCol = albedo;
         if (albedoMap && albedoMap->loaded)
         {
@@ -78,8 +93,9 @@ struct PBRShader : Shader
             metal = ((metallicMap->sampleBilinear(frag.uv.x, frag.uv.y) >> 16) & 0xFF) / 255.f;
 
         Vec3 F0 = Vec3(0.04f, 0.04f, 0.04f) + (baseCol - Vec3(0.04f, 0.04f, 0.04f)) * metal;
-        Vec3 Lo = {0.f, 0.f, 0.f};
 
+        // --- 4. Direct Lighting ---
+        Vec3 Lo = {0.f, 0.f, 0.f};
         for (const auto &light : lights->lights)
         {
             float shadow = (light.castsShadow && shadowMap) ? shadowMap->shadowFactor(frag.position) : 1.0f;
@@ -110,20 +126,25 @@ struct PBRShader : Shader
             }
         }
 
-        // --- Indirect IBL ---
+        // --- 5. Indirect IBL ---
         float dotNV = std::max(N.dot(V), 0.0f);
         Vec3 F_env =
             F0 + (Vec3(std::max(1.0f - rough, F0.x), std::max(1.0f - rough, F0.y), std::max(1.0f - rough, F0.z)) - F0) *
                      std::pow(1.0f - dotNV, 5.0f);
+
         Vec3 irradiance = {0.03f, 0.03f, 0.04f};
         if (irradianceMap && irradianceMap->loaded)
             irradiance = irradianceMap->sampleSpherical(N);
+
         Vec3 kD = (Vec3(1.0f, 1.0f, 1.0f) - F_env) * (1.0f - metal);
         Vec3 diffuseIBL = kD * baseCol * irradiance;
 
         Vec3 specularIBL = {0.f, 0.f, 0.f};
         if (environmentMap && environmentMap->loaded)
+        {
+            // Roughness jitter hack
             specularIBL = environmentMap->sampleSpherical((R + N * (rough * rough)).normalized());
+        }
 
         Vec3 ambient = (diffuseIBL + (specularIBL * (F_env * (1.0f - rough)))) * ao;
         return ShaderUtils::packColor(ambient + Lo);

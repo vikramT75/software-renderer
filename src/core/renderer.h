@@ -29,7 +29,7 @@ class Renderer
         if (scene.environmentMap && scene.environmentMap->loaded)
         {
             Mat4 view = scene.camera.view();
-            view.m[0][3] = view.m[1][3] = view.m[2][3] = 0; // Infinity sky
+            view.m[0][3] = view.m[1][3] = view.m[2][3] = 0;
             Mat4 invVP = (scene.camera.projection() * view).inverse();
 
             auto getRay = [&](float x, float y)
@@ -62,36 +62,37 @@ class Renderer
 
     void applyBloom()
     {
-        // 1. High-Threshold Extraction
         std::vector<Vec3> bright(m_width * m_height, {0.f, 0.f, 0.f});
         for (int i = 0; i < m_width * m_height; ++i)
         {
             uint32_t p = m_pixels[i];
             Vec3 c = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
-            // Only extract extremely bright highlights (threshold raised to 0.9)
-            float luminance = c.x * 0.2126f + c.y * 0.7152f + c.z * 0.0722f;
-            if (luminance > 0.9f)
+            float lum = c.x * 0.2126f + c.y * 0.7152f + c.z * 0.0722f;
+            if (lum > 0.92f)
                 bright[i] = c * 0.25f;
         }
 
-        // 2. Wider Box Blur (4 passes for softer glow)
+        // Symmetric Ping-Pong Blur
         for (int p = 0; p < 4; ++p)
         {
-            for (int i = m_width + 1; i < m_width * m_height - m_width - 1; ++i)
-                bright[i] = (bright[i - 1] + bright[i + 1] + bright[i - m_width] + bright[i + m_width]) * 0.25f;
+            std::vector<Vec3> temp = bright;
+            for (int y = 1; y < m_height - 1; ++y)
+            {
+                for (int x = 1; x < m_width - 1; ++x)
+                {
+                    int i = y * m_width + x;
+                    bright[i] = (temp[i - 1] + temp[i + 1] + temp[i - m_width] + temp[i + m_width]) * 0.25f;
+                }
+            }
         }
 
-        // 3. Simple Additive Composite (No double-tonemapping)
         for (int i = 0; i < m_width * m_height; ++i)
         {
             uint32_t p = m_pixels[i];
             Vec3 orig = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
-
-            Vec3 combined = orig + bright[i]; // Direct add
-
-            uint8_t ir = (uint8_t)(std::min(combined.x, 1.0f) * 255);
-            uint8_t ig = (uint8_t)(std::min(combined.y, 1.0f) * 255);
-            uint8_t ib = (uint8_t)(std::min(combined.z, 1.0f) * 255);
+            Vec3 combined = orig + bright[i];
+            uint8_t ir = (uint8_t)(std::min(combined.x, 1.0f) * 255), ig = (uint8_t)(std::min(combined.y, 1.0f) * 255),
+                    ib = (uint8_t)(std::min(combined.z, 1.0f) * 255);
             m_pixels[i] = 0xFF000000 | (ir << 16) | (ig << 8) | ib;
         }
     }
@@ -100,18 +101,18 @@ class Renderer
     {
         scene.updateHierarchy();
         Mat4 v = scene.camera.view(), p = scene.camera.projection();
-        bool shadow = false;
+        bool shadowPass = false;
         for (auto &e : scene.entities)
         {
             if (!e->mesh || !e->material || !e->material->castsShadow)
                 continue;
             setShadowModel(e->worldMatrix, scene.shadowMap);
-            if (!shadow)
+            if (!shadowPass)
             {
                 scene.shadowMap.clear();
                 m_shadowMap = &scene.shadowMap;
                 m_inShadowPass = true;
-                shadow = true;
+                shadowPass = true;
             }
             drawTriangles(e->mesh->vertices, e->mesh->indices, 0);
         }
@@ -168,6 +169,8 @@ class Renderer
                 cv[j].clip = (m_inShadowPass ? m_shadowMVP : m_mvp) * Vec4(v.position, 1.f);
                 Vec4 wp = m_model * Vec4(v.position, 1.f);
                 cv[j].worldPos = {wp.x, wp.y, wp.z};
+
+                // Tangent Bug Fix: Correctly handle transformation
                 if (!m_inShadowPass)
                 {
                     Vec4 wn = m_normalMat * Vec4(v.normal, 0.f);
@@ -176,7 +179,10 @@ class Renderer
                     cv[j].tangent = {wt.x, wt.y, wt.z};
                 }
                 else
+                {
                     cv[j].normal = v.normal;
+                    cv[j].tangent = v.tangent;
+                }
                 cv[j].uv = v.uv;
             }
             submitClipped(cv, color);
