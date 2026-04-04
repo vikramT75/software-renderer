@@ -1,31 +1,46 @@
 #pragma once
-#include "../math/vec2.h"
 #include "../math/vec3.h"
+#include "../pipeline/vertex.h"
+#include "../scene/light.h"
 #include <cstdint>
 
-// Forward declarations for per-frame state injection.
-struct LightList;
-struct ShadowMap;
+class ShadowMap;
 
-// Fragment data delivered to a shader from the rasterizer.
-struct FragmentInput {
-  Vec3 position; // world-space position
-  Vec3 normal;   // world-space normal (normalised)
-  Vec2 uv;
-  float depth; // NDC z
-  Vec3 tangent;
+enum class DebugMode
+{
+    None = 0,
+    Normals,
+    UVs,
+    Shadows,
+    Tangents,
+    WorldPos
 };
 
-// Base interface all shaders implement.
-// Returns packed ARGB8888 colour for the fragment.
-struct Shader {
-  virtual uint32_t shade(const FragmentInput &frag) const = 0;
+struct FragmentInput
+{
+    Vec3 position; // World-space position
+    Vec3 normal;   // World-space normal
+    Vec2 uv;
+    Vec3 tangent; // World-space tangent
+    float invW;   // For perspective-correct interpolation
+    float depth;  // MISSING MEMBER RE-ADDED
+};
 
-  // Called by Renderer before drawing each entity to inject per-frame state.
-  // Default no-ops — override in shaders that need lights/camera/shadows.
-  virtual void setFrameState(const Vec3 & /*cameraPos*/,
-                             const LightList * /*lights*/,
-                             const ShadowMap * /*shadowMap*/) {}
+struct Shader
+{
+    // Global toggle for the entire engine
+    inline static DebugMode globalDebugMode = DebugMode::None;
 
-  virtual ~Shader() = default;
+    // Individual override for this specific shader instance
+    DebugMode instanceDebugMode = DebugMode::None;
+
+    virtual void setFrameState(const Vec3 &camPos, const LightList *lts, const ShadowMap *sm) = 0;
+    virtual uint32_t shade(const FragmentInput &frag) const = 0;
+    virtual ~Shader() = default;
+
+  protected:
+    DebugMode getActiveMode() const
+    {
+        return (instanceDebugMode != DebugMode::None) ? instanceDebugMode : globalDebugMode;
+    }
 };
