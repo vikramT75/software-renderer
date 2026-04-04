@@ -313,16 +313,21 @@ class Renderer
     void parallelFor(int start, int end, std::function<void(int, int)> func)
     {
         int total = end - start;
-        int chunk = total / m_numThreads;
-        if (chunk == 0)
-        {
-            func(start, end);
+        if (total <= 0)
             return;
-        }
+
+        // The Agent's Fix: Ceiling division to prevent overloading the last thread
+        int chunk = (total + m_numThreads - 1) / m_numThreads;
+
         for (unsigned int i = 0; i < m_numThreads; ++i)
         {
             int s = start + i * chunk;
-            int e = (i == m_numThreads - 1) ? end : s + chunk;
+            if (s >= end)
+                break; // If we rounded up enough to finish early, stop spawning tasks
+
+            // Clamp the end index so the last thread stops exactly where it should
+            int e = std::min(s + chunk, end);
+
             m_pool.enqueue([func, s, e]() { func(s, e); });
         }
         m_pool.wait();
