@@ -20,9 +20,7 @@ class Renderer
     CullMode cullMode = CullMode::Back;
     const Shader *activeShader = nullptr;
 
-    Renderer(int width, int height)
-        : m_width(width), m_height(height), m_pixels(width * height, 0u), m_fb(width, height, m_pixels.data()),
-          m_db(width, height)
+    Renderer(int w, int h) : m_width(w), m_height(h), m_pixels(w * h, 0u), m_fb(w, h, m_pixels.data()), m_db(w, h)
     {
     }
 
@@ -31,163 +29,105 @@ class Renderer
         if (scene.environmentMap && scene.environmentMap->loaded)
         {
             Mat4 view = scene.camera.view();
-            // Skybox should not move with camera translation
-            view.m[0][3] = 0;
-            view.m[1][3] = 0;
-            view.m[2][3] = 0;
-
+            view.m[0][3] = view.m[1][3] = view.m[2][3] = 0; // Infinity sky
             Mat4 invVP = (scene.camera.projection() * view).inverse();
 
-            // Calculate 4 corner rays once per frame
             auto getRay = [&](float x, float y)
             {
                 Vec4 ray = invVP * Vec4(x, y, 1.0f, 1.0f);
-                // Perspective division and normalization
                 float wInv = 1.0f / ray.w;
                 return Vec3(ray.x * wInv, ray.y * wInv, ray.z * wInv).normalized();
             };
 
-            Vec3 rayTL = getRay(-1.f, 1.f);
-            Vec3 rayTR = getRay(1.f, 1.f);
-            Vec3 rayBL = getRay(-1.f, -1.f);
-            Vec3 rayBR = getRay(1.f, -1.f);
+            Vec3 rayTL = getRay(-1.f, 1.f), rayTR = getRay(1.f, 1.f), rayBL = getRay(-1.f, -1.f),
+                 rayBR = getRay(1.f, -1.f);
 
             for (int y = 0; y < m_height; ++y)
             {
                 float tV = (float)y / (float)(m_height - 1);
-                Vec3 left = rayTL * (1.0f - tV) + rayBL * tV;
-                Vec3 right = rayTR * (1.0f - tV) + rayBR * tV;
-
+                Vec3 left = rayTL * (1.0f - tV) + rayBL * tV, right = rayTR * (1.0f - tV) + rayBR * tV;
                 for (int x = 0; x < m_width; ++x)
                 {
                     float tH = (float)x / (float)(m_width - 1);
-                    // Bilinear interpolation across the screen
                     Vec3 dir = left * (1.0f - tH) + right * tH;
-
                     Vec3 color = scene.environmentMap->sampleSpherical(dir);
-
-                    // Simple tone mapping & Gamma correction approx with sqrt
-                    uint8_t r = (uint8_t)(std::sqrt(color.x / (color.x + 1.f)) * 255.f);
-                    uint8_t g = (uint8_t)(std::sqrt(color.y / (color.y + 1.f)) * 255.f);
-                    uint8_t b = (uint8_t)(std::sqrt(color.z / (color.z + 1.f)) * 255.f);
-                    m_pixels[y * m_width + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
+                    m_pixels[y * m_width + x] = ShaderUtils::packColor(color);
                 }
             }
         }
         else
-        {
             m_fb.clear(scene.clearColor);
-        }
         m_db.clear();
     }
 
-    void setMVP(const Mat4 &model, const Mat4 &view, const Mat4 &projection)
+    void applyBloom()
     {
-        m_model = model;
-        m_mvp = projection * view * model;
-        m_normalMat = model.normalMatrix();
-    }
+        // 1. High-Threshold Extraction
+        std::vector<Vec3> bright(m_width * m_height, {0.f, 0.f, 0.f});
+        for (int i = 0; i < m_width * m_height; ++i)
+        {
+            uint32_t p = m_pixels[i];
+            Vec3 c = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
+            // Only extract extremely bright highlights (threshold raised to 0.9)
+            float luminance = c.x * 0.2126f + c.y * 0.7152f + c.z * 0.0722f;
+            if (luminance > 0.9f)
+                bright[i] = c * 0.25f;
+        }
 
-    void beginShadowPass(ShadowMap &sm)
-    {
-        sm.clear();
-        m_shadowMap = &sm;
-        m_inShadowPass = true;
-    }
+        // 2. Wider Box Blur (4 passes for softer glow)
+        for (int p = 0; p < 4; ++p)
+        {
+            for (int i = m_width + 1; i < m_width * m_height - m_width - 1; ++i)
+                bright[i] = (bright[i - 1] + bright[i + 1] + bright[i - m_width] + bright[i + m_width]) * 0.25f;
+        }
 
-    void endShadowPass()
-    {
-        m_inShadowPass = false;
-        m_shadowMap = nullptr;
-    }
+        // 3. Simple Additive Composite (No double-tonemapping)
+        for (int i = 0; i < m_width * m_height; ++i)
+        {
+            uint32_t p = m_pixels[i];
+            Vec3 orig = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
 
-    void setModel(const Mat4 &model)
-    {
-        m_model = model;
-        m_normalMat = model.normalMatrix();
-        if (m_inShadowPass && m_shadowMap)
-            m_shadowMVP = m_shadowMap->lightSpaceMatrix() * model;
+            Vec3 combined = orig + bright[i]; // Direct add
+
+            uint8_t ir = (uint8_t)(std::min(combined.x, 1.0f) * 255);
+            uint8_t ig = (uint8_t)(std::min(combined.y, 1.0f) * 255);
+            uint8_t ib = (uint8_t)(std::min(combined.z, 1.0f) * 255);
+            m_pixels[i] = 0xFF000000 | (ir << 16) | (ig << 8) | ib;
+        }
     }
 
     void render(Scene &scene)
     {
         scene.updateHierarchy();
-        Mat4 view = scene.camera.view();
-        Mat4 proj = scene.camera.projection();
-
-        bool shadowStarted = false;
-        for (const auto &entityPtr : scene.entities)
+        Mat4 v = scene.camera.view(), p = scene.camera.projection();
+        bool shadow = false;
+        for (auto &e : scene.entities)
         {
-            Entity *entity = entityPtr.get();
-            if (!entity->mesh || !entity->material || !entity->material->castsShadow)
+            if (!e->mesh || !e->material || !e->material->castsShadow)
                 continue;
-            setModel(entity->worldMatrix);
-            if (!shadowStarted)
+            setShadowModel(e->worldMatrix, scene.shadowMap);
+            if (!shadow)
             {
-                beginShadowPass(scene.shadowMap);
-                shadowStarted = true;
+                scene.shadowMap.clear();
+                m_shadowMap = &scene.shadowMap;
+                m_inShadowPass = true;
+                shadow = true;
             }
-            drawTriangles(entity->mesh->vertices, entity->mesh->indices, 0);
+            drawTriangles(e->mesh->vertices, e->mesh->indices, 0);
         }
-        if (shadowStarted)
-            endShadowPass();
-
+        m_inShadowPass = false;
+        m_shadowMap = nullptr;
         beginFrame(scene);
-
-        for (auto &entityPtr : scene.entities)
+        for (auto &e : scene.entities)
         {
-            Entity *entity = entityPtr.get();
-            if (!entity->mesh || !entity->material)
+            if (!e->mesh || !e->material)
                 continue;
-            Shader *shader = entity->material->shader;
-            if (shader)
-                shader->setFrameState(scene.camera.position, &scene.lights, &scene.shadowMap);
-            cullMode = entity->material->cullMode;
-            activeShader = shader;
-            setMVP(entity->worldMatrix, view, proj);
-            drawTriangles(entity->mesh->vertices, entity->mesh->indices, 0);
-        }
-    }
-
-    void drawTriangles(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices, uint32_t color)
-    {
-        if (m_inShadowPass)
-        {
-            for (size_t i = 0; i + 2 < indices.size(); i += 3)
-            {
-                ClipVertex cv[3];
-                for (int j = 0; j < 3; ++j)
-                {
-                    const Vertex &v = vertices[indices[i + j]];
-                    cv[j].clip = m_shadowMVP * Vec4(v.position, 1.f);
-                    Vec4 wp = m_model * Vec4(v.position, 1.f);
-                    cv[j].worldPos = {wp.x, wp.y, wp.z};
-                    cv[j].normal = v.normal;
-                    cv[j].uv = v.uv;
-                    cv[j].tangent = v.tangent;
-                }
-                submitClipped(cv, color);
-            }
-        }
-        else
-        {
-            for (size_t i = 0; i + 2 < indices.size(); i += 3)
-            {
-                ClipVertex cv[3];
-                for (int j = 0; j < 3; ++j)
-                {
-                    const Vertex &v = vertices[indices[i + j]];
-                    cv[j].clip = m_mvp * Vec4(v.position, 1.f);
-                    Vec4 wp = m_model * Vec4(v.position, 1.f);
-                    cv[j].worldPos = {wp.x, wp.y, wp.z};
-                    Vec4 wn = m_normalMat * Vec4(v.normal, 0.f);
-                    cv[j].normal = {wn.x, wn.y, wn.z};
-                    Vec4 wt = m_normalMat * Vec4(v.tangent, 0.f);
-                    cv[j].tangent = {wt.x, wt.y, wt.z};
-                    cv[j].uv = v.uv;
-                }
-                submitClipped(cv, color);
-            }
+            if (e->material->shader)
+                e->material->shader->setFrameState(scene.camera.position, &scene.lights, &scene.shadowMap);
+            cullMode = e->material->cullMode;
+            activeShader = e->material->shader;
+            setMainModel(e->worldMatrix, v, p);
+            drawTriangles(e->mesh->vertices, e->mesh->indices, 0);
         }
     }
 
@@ -205,20 +145,54 @@ class Renderer
     ShadowMap *m_shadowMap = nullptr;
     bool m_inShadowPass = false;
 
+    void setShadowModel(const Mat4 &m, ShadowMap &sm)
+    {
+        m_model = m;
+        m_shadowMVP = sm.lightSpaceMatrix() * m;
+    }
+    void setMainModel(const Mat4 &m, const Mat4 &v, const Mat4 &p)
+    {
+        m_model = m;
+        m_mvp = p * v * m;
+        m_normalMat = m.normalMatrix();
+    }
+
+    void drawTriangles(const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices, uint32_t color)
+    {
+        for (size_t i = 0; i + 2 < indices.size(); i += 3)
+        {
+            ClipVertex cv[3];
+            for (int j = 0; j < 3; ++j)
+            {
+                const Vertex &v = vertices[indices[i + j]];
+                cv[j].clip = (m_inShadowPass ? m_shadowMVP : m_mvp) * Vec4(v.position, 1.f);
+                Vec4 wp = m_model * Vec4(v.position, 1.f);
+                cv[j].worldPos = {wp.x, wp.y, wp.z};
+                if (!m_inShadowPass)
+                {
+                    Vec4 wn = m_normalMat * Vec4(v.normal, 0.f);
+                    cv[j].normal = {wn.x, wn.y, wn.z};
+                    Vec4 wt = m_normalMat * Vec4(v.tangent, 0.f);
+                    cv[j].tangent = {wt.x, wt.y, wt.z};
+                }
+                else
+                    cv[j].normal = v.normal;
+                cv[j].uv = v.uv;
+            }
+            submitClipped(cv, color);
+        }
+    }
+
     void submitClipped(const ClipVertex cv[3], uint32_t color)
     {
         ClipPolygon poly = clipTriangle(cv);
         if (poly.count < 3)
             return;
-        
-        if (m_inShadowPass)
+        for (int i = 1; i + 1 < poly.count; ++i)
         {
-            for (int i = 1; i + 1 < poly.count; ++i)
+            if (m_inShadowPass)
                 rasterizeShadow(poly.verts[0], poly.verts[i], poly.verts[i + 1], *m_shadowMap);
-        }
-        else
-        {
-            for (int i = 1; i + 1 < poly.count; ++i)
+            else
             {
                 Triangle tri;
                 tri.v[0] = toScreen(poly.verts[0], m_width, m_height);
@@ -232,25 +206,22 @@ class Renderer
 
     void rasterizeShadow(const ClipVertex &a, const ClipVertex &b, const ClipVertex &c, ShadowMap &sm)
     {
-        ScreenVertex v0 = toScreen(a, sm.width, sm.height);
-        ScreenVertex v1 = toScreen(b, sm.width, sm.height);
-        ScreenVertex v2 = toScreen(c, sm.width, sm.height);
-        int minX = std::max(0, (int)std::floor(std::min({v0.sx, v1.sx, v2.sx})));
-        int maxX = std::min(sm.width - 1, (int)std::ceil(std::max({v0.sx, v1.sx, v2.sx})));
-        int minY = std::max(0, (int)std::floor(std::min({v0.sy, v1.sy, v2.sy})));
-        int maxY = std::min(sm.height - 1, (int)std::ceil(std::max({v0.sy, v1.sy, v2.sy})));
+        ScreenVertex v0 = toScreen(a, sm.width, sm.height), v1 = toScreen(b, sm.width, sm.height),
+                     v2 = toScreen(c, sm.width, sm.height);
         float area2 = edgeFunction(v0.sx, v0.sy, v1.sx, v1.sy, v2.sx, v2.sy);
         if (area2 == 0.f)
             return;
+        int minX = std::max(0, (int)std::floor(std::min({v0.sx, v1.sx, v2.sx}))),
+            maxX = std::min(sm.width - 1, (int)std::ceil(std::max({v0.sx, v1.sx, v2.sx})));
+        int minY = std::max(0, (int)std::floor(std::min({v0.sy, v1.sy, v2.sy}))),
+            maxY = std::min(sm.height - 1, (int)std::ceil(std::max({v0.sy, v1.sy, v2.sy})));
         for (int y = minY; y <= maxY; ++y)
         {
             for (int x = minX; x <= maxX; ++x)
             {
                 auto bar = Barycentric::compute(v0.sx, v0.sy, v1.sx, v1.sy, v2.sx, v2.sy, x + 0.5f, y + 0.5f, area2);
-                if (!bar.inside)
-                    continue;
-                float z = bar.w0 * v0.z + bar.w1 * v1.z + bar.w2 * v2.z;
-                sm.testAndSet(x, y, z);
+                if (bar.inside)
+                    sm.testAndSet(x, y, bar.w0 * v0.z + bar.w1 * v1.z + bar.w2 * v2.z);
             }
         }
     }
