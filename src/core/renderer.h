@@ -11,8 +11,79 @@
 #include "framebuffer.h"
 #include "shadow_map.h"
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
+#include <functional>
+#include <mutex>
+#include <queue>
+#include <thread>
 #include <vector>
+
+// Lightweight persistent thread pool
+struct ThreadPool
+{
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex queueMutex;
+    std::condition_variable condition;
+    std::condition_variable finishedCondition;
+    std::atomic<int> activeTasks{0};
+    bool stop = false;
+
+    ThreadPool(size_t threads)
+    {
+        for (size_t i = 0; i < threads; ++i)
+        {
+            workers.emplace_back(
+                [this]
+                {
+                    for (;;)
+                    {
+                        std::function<void()> task;
+                        {
+                            std::unique_lock<std::mutex> lock(this->queueMutex);
+                            this->condition.wait(lock, [this] { return this->stop || !this->tasks.empty(); });
+                            if (this->stop && this->tasks.empty())
+                                return;
+                            task = std::move(this->tasks.front());
+                            this->tasks.pop();
+                        }
+                        task();
+                        if (--activeTasks == 0)
+                            finishedCondition.notify_all();
+                    }
+                });
+        }
+    }
+
+    void enqueue(std::function<void()> task)
+    {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            tasks.emplace(std::move(task));
+            activeTasks++;
+        }
+        condition.notify_one();
+    }
+
+    void wait()
+    {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        finishedCondition.wait(lock, [this]() { return activeTasks == 0; });
+    }
+
+    ~ThreadPool()
+    {
+        {
+            std::unique_lock<std::mutex> lock(queueMutex);
+            stop = true;
+        }
+        condition.notify_all();
+        for (std::thread &worker : workers)
+            worker.join();
+    }
+};
 
 class Renderer
 {
@@ -20,7 +91,10 @@ class Renderer
     CullMode cullMode = CullMode::Back;
     const Shader *activeShader = nullptr;
 
-    Renderer(int w, int h) : m_width(w), m_height(h), m_pixels(w * h, 0u), m_fb(w, h, m_pixels.data()), m_db(w, h)
+    Renderer(int w, int h)
+        : m_width(w), m_height(h), m_pixels(w * h, 0u), m_fb(w, h, m_pixels.data()), m_db(w, h),
+          m_numThreads(std::max(1u, std::thread::hardware_concurrency())),
+          m_pool(m_numThreads) // Initialize persistent pool
     {
     }
 
@@ -42,18 +116,22 @@ class Renderer
             Vec3 rayTL = getRay(-1.f, 1.f), rayTR = getRay(1.f, 1.f), rayBL = getRay(-1.f, -1.f),
                  rayBR = getRay(1.f, -1.f);
 
-            for (int y = 0; y < m_height; ++y)
-            {
-                float tV = (float)y / (float)(m_height - 1);
-                Vec3 left = rayTL * (1.0f - tV) + rayBL * tV, right = rayTR * (1.0f - tV) + rayBR * tV;
-                for (int x = 0; x < m_width; ++x)
-                {
-                    float tH = (float)x / (float)(m_width - 1);
-                    Vec3 dir = left * (1.0f - tH) + right * tH;
-                    Vec3 color = scene.environmentMap->sampleSpherical(dir);
-                    m_pixels[y * m_width + x] = ShaderUtils::packColor(color);
-                }
-            }
+            parallelFor(0, m_height,
+                        [&](int yMin, int yMax)
+                        {
+                            for (int y = yMin; y < yMax; ++y)
+                            {
+                                float tV = (float)y / (float)(m_height - 1);
+                                Vec3 left = rayTL * (1.0f - tV) + rayBL * tV, right = rayTR * (1.0f - tV) + rayBR * tV;
+                                for (int x = 0; x < m_width; ++x)
+                                {
+                                    float tH = (float)x / (float)(m_width - 1);
+                                    Vec3 dir = left * (1.0f - tH) + right * tH;
+                                    m_pixels[y * m_width + x] =
+                                        ShaderUtils::packColor(scene.environmentMap->sampleSpherical(dir));
+                                }
+                            }
+                        });
         }
         else
             m_fb.clear(scene.clearColor);
@@ -63,44 +141,63 @@ class Renderer
     void applyBloom()
     {
         std::vector<Vec3> bright(m_width * m_height, {0.f, 0.f, 0.f});
-        for (int i = 0; i < m_width * m_height; ++i)
-        {
-            uint32_t p = m_pixels[i];
-            Vec3 c = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
-            float lum = c.x * 0.2126f + c.y * 0.7152f + c.z * 0.0722f;
-            if (lum > 0.92f)
-                bright[i] = c * 0.25f;
-        }
+        std::vector<Vec3> temp(m_width * m_height, {0.f, 0.f, 0.f});
 
-        // Symmetric Ping-Pong Blur
+        // 1. Parallel Extraction
+        parallelFor(0, m_width * m_height,
+                    [&](int iMin, int iMax)
+                    {
+                        for (int i = iMin; i < iMax; ++i)
+                        {
+                            uint32_t p = m_pixels[i];
+                            Vec3 c = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
+                            float lum = c.x * 0.2126f + c.y * 0.7152f + c.z * 0.0722f;
+                            if (lum > 0.92f)
+                                bright[i] = c * 0.25f;
+                        }
+                    });
+
+        // 2. Parallel Persistent Blur
         for (int p = 0; p < 4; ++p)
         {
-            std::vector<Vec3> temp = bright;
-            for (int y = 1; y < m_height - 1; ++y)
-            {
-                for (int x = 1; x < m_width - 1; ++x)
-                {
-                    int i = y * m_width + x;
-                    bright[i] = (temp[i - 1] + temp[i + 1] + temp[i - m_width] + temp[i + m_width]) * 0.25f;
-                }
-            }
+            temp = bright;
+            parallelFor(1, m_height - 1,
+                        [&](int yMin, int yMax)
+                        {
+                            for (int y = yMin; y < yMax; ++y)
+                            {
+                                for (int x = 1; x < m_width - 1; ++x)
+                                {
+                                    int i = y * m_width + x;
+                                    bright[i] =
+                                        (temp[i - 1] + temp[i + 1] + temp[i - m_width] + temp[i + m_width]) * 0.25f;
+                                }
+                            }
+                        });
         }
 
-        for (int i = 0; i < m_width * m_height; ++i)
-        {
-            uint32_t p = m_pixels[i];
-            Vec3 orig = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
-            Vec3 combined = orig + bright[i];
-            uint8_t ir = (uint8_t)(std::min(combined.x, 1.0f) * 255), ig = (uint8_t)(std::min(combined.y, 1.0f) * 255),
-                    ib = (uint8_t)(std::min(combined.z, 1.0f) * 255);
-            m_pixels[i] = 0xFF000000 | (ir << 16) | (ig << 8) | ib;
-        }
+        // 3. Parallel Composite
+        parallelFor(0, m_width * m_height,
+                    [&](int iMin, int iMax)
+                    {
+                        for (int i = iMin; i < iMax; ++i)
+                        {
+                            uint32_t p = m_pixels[i];
+                            Vec3 orig = {((p >> 16) & 0xFF) / 255.f, ((p >> 8) & 0xFF) / 255.f, (p & 0xFF) / 255.f};
+                            Vec3 combined = orig + bright[i];
+                            uint8_t ir = (uint8_t)(std::min(combined.x, 1.0f) * 255);
+                            uint8_t ig = (uint8_t)(std::min(combined.y, 1.0f) * 255);
+                            uint8_t ib = (uint8_t)(std::min(combined.z, 1.0f) * 255);
+                            m_pixels[i] = 0xFF000000 | (ir << 16) | (ig << 8) | ib;
+                        }
+                    });
     }
 
     void render(Scene &scene)
     {
         scene.updateHierarchy();
         Mat4 v = scene.camera.view(), p = scene.camera.projection();
+
         bool shadowPass = false;
         for (auto &e : scene.entities)
         {
@@ -118,7 +215,9 @@ class Renderer
         }
         m_inShadowPass = false;
         m_shadowMap = nullptr;
+
         beginFrame(scene);
+
         for (auto &e : scene.entities)
         {
             if (!e->mesh || !e->material)
@@ -139,12 +238,34 @@ class Renderer
 
   private:
     int m_width, m_height;
+    unsigned int m_numThreads;
+    ThreadPool m_pool; // Persistent pool
     std::vector<uint32_t> m_pixels;
     Framebuffer m_fb;
     Depthbuffer m_db;
     Mat4 m_mvp, m_model, m_normalMat, m_shadowMVP;
     ShadowMap *m_shadowMap = nullptr;
     bool m_inShadowPass = false;
+
+    // Optimized parallelFor using the persistent pool
+    void parallelFor(int start, int end, std::function<void(int, int)> func)
+    {
+        int total = end - start;
+        int chunk = total / m_numThreads;
+        if (chunk == 0)
+        {
+            func(start, end);
+            return;
+        }
+
+        for (unsigned int i = 0; i < m_numThreads; ++i)
+        {
+            int s = start + i * chunk;
+            int e = (i == m_numThreads - 1) ? end : s + chunk;
+            m_pool.enqueue([func, s, e]() { func(s, e); });
+        }
+        m_pool.wait();
+    }
 
     void setShadowModel(const Mat4 &m, ShadowMap &sm)
     {
@@ -169,8 +290,6 @@ class Renderer
                 cv[j].clip = (m_inShadowPass ? m_shadowMVP : m_mvp) * Vec4(v.position, 1.f);
                 Vec4 wp = m_model * Vec4(v.position, 1.f);
                 cv[j].worldPos = {wp.x, wp.y, wp.z};
-
-                // Tangent Bug Fix: Correctly handle transformation
                 if (!m_inShadowPass)
                 {
                     Vec4 wn = m_normalMat * Vec4(v.normal, 0.f);
