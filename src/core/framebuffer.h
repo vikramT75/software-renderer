@@ -1,31 +1,20 @@
 #pragma once
-#include <cstdint>
+#include "../math/vec3.h"
 #include <algorithm>
+#include <vector>
 
-// Owns the pixel buffer written each frame.
-// Layout: row-major, top-left origin.  Format: ARGB8888 (matches SDL).
-struct Framebuffer
+// HDR linear framebuffer — stores raw Vec3 radiance values.
+// Tonemapping + packing to uint32_t happens only once in Renderer::applyBloom.
+// Layout: row-major, top-left origin.
+class Framebuffer
 {
-    int      width;
-    int      height;
-    uint32_t* pixels;   // owned externally — passed in from Renderer
+    int m_width, m_height;
+    std::vector<Vec3> &m_buffer; // non-owning reference to Renderer's HDR buffer
 
-    Framebuffer(int w, int h, uint32_t* data)
-        : width(w), height(h), pixels(data) {}
+  public:
+    Framebuffer(int w, int h, std::vector<Vec3> &buffer) : m_width(w), m_height(h), m_buffer(buffer) {}
 
-    void clear(uint32_t color)
-    {
-        std::fill(pixels, pixels + width * height, color);
-    }
+    void clear(const Vec3 &clearColor) { std::fill(m_buffer.begin(), m_buffer.end(), clearColor); }
 
-    inline void setPixel(int x, int y, uint32_t color)
-    {
-        if (x < 0 || y < 0 || x >= width || y >= height) return;
-        pixels[y * width + x] = color;
-    }
-
-    inline uint32_t getPixel(int x, int y) const
-    {
-        return pixels[y * width + x];
-    }
+    inline void setPixel(int x, int y, const Vec3 &color) { m_buffer[y * m_width + x] = color; }
 };

@@ -33,10 +33,13 @@ struct FragmentInput
     float depth;
 };
 
+// Tonemap a linear HDR Vec3 and pack to ARGB8888.
+// Called exclusively by Renderer::applyBloom() — NOT inside shade().
 struct ShaderUtils
 {
     static uint32_t packColor(const Vec3 &color)
     {
+        // Reinhard-family approximation: sqrt(x/(x+1)) maps [0,∞) → [0,1)
         float r = std::sqrt(color.x / (color.x + 1.0f));
         float g = std::sqrt(color.y / (color.y + 1.0f));
         float b = std::sqrt(color.z / (color.z + 1.0f));
@@ -57,7 +60,8 @@ struct Shader
     DebugMode instanceDebugMode = DebugMode::None;
 
     virtual void setFrameState(const Vec3 &camPos, const LightList *lts, const ShadowMap *sm) = 0;
-    virtual uint32_t shade(const FragmentInput &frag) const = 0;
+    // Returns a raw linear HDR Vec3. Tonemapping is done once by the renderer.
+    virtual Vec3 shade(const FragmentInput &frag) const = 0;
     virtual ~Shader() = default;
 
   protected:

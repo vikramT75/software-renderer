@@ -15,6 +15,7 @@ find_package(SDL2 REQUIRED)
 
 set(SWR_SOURCES
     src/main.cpp
+    src/loaders/stb_image.cpp
 )
 
 add_executable(swr ${SWR_SOURCES})

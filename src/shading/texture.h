@@ -2,18 +2,12 @@
 #include "../math/math_utils.h"
 #include "../math/vec2.h"
 #include "../math/vec3.h"
+#include "../third_party/stb_image.h"
 #include <cmath>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-
-#ifndef STBI_INCLUDE_LINE
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_NO_THREAD_LOCALS
-#endif
-#include "../third_party/stb_image.h"
 
 class Texture
 {

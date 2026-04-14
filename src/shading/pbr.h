@@ -26,7 +26,7 @@ struct PBRShader : Shader
         shadowMap = sm;
     }
 
-    uint32_t shade(const FragmentInput &frag) const override
+    Vec3 shade(const FragmentInput &frag) const override
     {
         // --- 1. Debug Visualization ---
         DebugMode activeMode = getActiveMode();
@@ -57,7 +57,7 @@ struct PBRShader : Shader
                 float s = shadowMap->shadowFactor(frag.position);
                 dCol = {s, s, s};
             }
-            return ShaderUtils::packColor(dCol);
+            return dCol; // Return raw Vec3 — renderer will tonemap
         }
 
         // --- 2. Surface Basis & Vectors ---
@@ -142,11 +142,11 @@ struct PBRShader : Shader
         Vec3 specularIBL = {0.f, 0.f, 0.f};
         if (environmentMap && environmentMap->loaded)
         {
-            // Roughness jitter hack
+            // Roughness jitter hack — perturbs reflection ray toward normal for rough surfaces
             specularIBL = environmentMap->sampleSpherical((R + N * (rough * rough)).normalized());
         }
 
         Vec3 ambient = (diffuseIBL + (specularIBL * (F_env * (1.0f - rough)))) * ao;
-        return ShaderUtils::packColor(ambient + Lo);
+        return ambient + Lo; // Raw HDR Vec3 — renderer tonemaps at the end
     }
 };

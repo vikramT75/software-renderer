@@ -194,8 +194,18 @@ int main(int, char *[])
             Shader::globalDebugMode = DebugMode::Tangents;
 
         // Flashlight toggle logic
-        scene.lights.lights[2].position = scene.camera.position;
-        scene.lights.lights[2].intensity = keys[SDL_SCANCODE_F] ? 5.0f : 0.0f;
+        static bool f_was_pressed = false;
+        static bool flashlight_on = false;
+        bool f_is_pressed = keys[SDL_SCANCODE_F];
+
+        if (f_is_pressed && !f_was_pressed)
+        {
+            flashlight_on = !flashlight_on;
+        }
+        f_was_pressed = f_is_pressed;
+
+        scene.lights.lights[2].position  = scene.camera.position; // always track camera
+        scene.lights.lights[2].intensity = flashlight_on ? 5.0f : 0.0f;
 
         // --- Animations ---
         center->transform.rotation.y = angle;

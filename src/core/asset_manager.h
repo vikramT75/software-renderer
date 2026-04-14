@@ -54,7 +54,9 @@ class AssetManager
         }
     }
 
-    // Generates a low-res blurred Irradiance map from a skybox
+    // Generates a physically correct irradiance map via hemispherical Monte Carlo integration.
+    // For each texel (representing a normal direction N), integrates L(ωi)·cos(θi)·dω
+    // over the upper hemisphere, which is the diffuse irradiance term in the rendering equation.
     Texture *getIrradianceMap(const std::string &skyPath)
     {
         std::string key = skyPath + "_irradiance";
@@ -79,28 +81,19 @@ class AssetManager
                 float u = (float)x / irr->width;
                 float v = (float)y / irr->height;
 
-                float phi = u * 2.0f * MathUtils::PI;
-                float theta = (v - 0.5f) * MathUtils::PI;
+                float phi_N   = u * 2.0f * MathUtils::PI;
+                float theta_N = (v - 0.5f) * MathUtils::PI;
 
-                // Normal direction for this pixel
-                Vec3 N = {std::cos(theta) * std::cos(phi), std::sin(theta), std::cos(theta) * std::sin(phi)};
+                // World-space normal for this texel
+                Vec3 N = {std::cos(theta_N) * std::cos(phi_N),
+                           std::sin(theta_N),
+                           std::cos(theta_N) * std::sin(phi_N)};
 
-                // Sample a small area to simulate blurring
-                Vec3 sum = {0.f, 0.f, 0.f};
-                int samples = 0;
-                for (float i = -0.1f; i <= 0.1f; i += 0.05f)
-                {
-                    for (float j = -0.1f; j <= 0.1f; j += 0.05f)
-                    {
-                        sum += sky->sampleSpherical(N + Vec3{i, j, i});
-                        samples++;
-                    }
-                }
-                Vec3 avg = sum * (1.0f / (float)samples);
+                Vec3 irradiance = calculateIrradiance(sky, N);
 
-                uint8_t r = (uint8_t)(MathUtils::clamp(avg.x, 0.f, 1.f) * 255);
-                uint8_t g = (uint8_t)(MathUtils::clamp(avg.y, 0.f, 1.f) * 255);
-                uint8_t b = (uint8_t)(MathUtils::clamp(avg.z, 0.f, 1.f) * 255);
+                uint8_t r = (uint8_t)(MathUtils::clamp(irradiance.x, 0.f, 1.f) * 255);
+                uint8_t g = (uint8_t)(MathUtils::clamp(irradiance.y, 0.f, 1.f) * 255);
+                uint8_t b = (uint8_t)(MathUtils::clamp(irradiance.z, 0.f, 1.f) * 255);
                 irr->data[y * irr->width + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
             }
         }
@@ -120,4 +113,40 @@ class AssetManager
   private:
     std::unordered_map<std::string, std::unique_ptr<Mesh>> m_meshes;
     std::unordered_map<std::string, std::unique_ptr<Texture>> m_textures;
+
+    // Integrates L(ωi)·cos(θ)·sin(θ)·dφ·dθ over the hemisphere whose pole is N.
+    // sin(θ) is the spherical coordinate Jacobian; cos(θ) is the Lambertian weight.
+    // The result is normalised by π / numSamples (Monte Carlo estimator).
+    Vec3 calculateIrradiance(const Texture *sky, const Vec3 &N)
+    {
+        // Build an orthonormal TBN frame around N
+        Vec3 up    = std::abs(N.y) < 0.999f ? Vec3{0.f, 1.f, 0.f} : Vec3{0.f, 0.f, 1.f};
+        Vec3 right = up.cross(N).normalized();
+        Vec3 newUp = N.cross(right).normalized();
+
+        Vec3  irradiance = {0.f, 0.f, 0.f};
+        int   samples    = 0;
+        float delta      = 0.05f; // ~2.9° step — gives 126 azimuth × 32 elevation = ~4 000 samples/texel
+
+        for (float phi = 0.0f; phi < 2.0f * MathUtils::PI; phi += delta)
+        {
+            for (float theta = 0.0f; theta < 0.5f * MathUtils::PI; theta += delta)
+            {
+                // Spherical → tangent space Cartesian
+                Vec3 tangentSample = {std::sin(theta) * std::cos(phi),
+                                      std::sin(theta) * std::sin(phi),
+                                      std::cos(theta)};
+
+                // Tangent space → world space
+                Vec3 sampleVec = right * tangentSample.x + newUp * tangentSample.y + N * tangentSample.z;
+
+                // cos(θ) = Lambertian weight; sin(θ) = spherical Jacobian
+                irradiance += sky->sampleSpherical(sampleVec) * std::cos(theta) * std::sin(theta);
+                ++samples;
+            }
+        }
+
+        // π comes from integrating the hemisphere weighting analytically
+        return irradiance * (MathUtils::PI / float(samples));
+    }
 };
