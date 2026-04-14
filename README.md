@@ -2,7 +2,7 @@
 
 A from-scratch, high-performance CPU rasterizer written in modern C++17. It uses SDL2 exclusively for window management and pixel upload to the screen. No GPU APIs (OpenGL/Vulkan/DirectX) and no third-party math libraries are used.
 
-This project serves as an advanced portfolio piece demonstrating a deep understanding of rendering mathematics, multi-threaded performance engineering, and state-of-the-art physically based rendering (PBR).
+This project serves as a portfolio piece demonstrating rendering mathematics, multi-threaded performance engineering, physically based rendering (PBR) and image-based lighting (IBL).
 
 ---
 
