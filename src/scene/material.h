@@ -16,4 +16,5 @@ struct Material
     Shader *shader = nullptr;           // NOT owned — PBRShader, PhongShader, etc.
     CullMode cullMode = CullMode::Back; // per-material face culling
     bool castsShadow = true;            // should this material appear in shadow pass?
+    bool isTransparent = false;         // Tell the renderer to depth-sort this
 };

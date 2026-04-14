@@ -1,8 +1,10 @@
 #pragma once
 #include "../math/math_utils.h"
 #include "../math/vec3.h"
+#include "../math/vec4.h"
 #include "../pipeline/vertex.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 // Restore the missing CullMode enum
@@ -37,12 +39,37 @@ struct FragmentInput
 // Called exclusively by Renderer::applyBloom() — NOT inside shade().
 struct ShaderUtils
 {
+    static float exposure;
+    static float saturation;
+
+    static Vec3 tonemapACES(Vec3 v)
+    {
+        v = v * exposure;
+
+        // 1. Standard Per-Channel ACES
+        // This naturally desaturates extremely bright highlights (like the sun) to white.
+        float a = 2.51f, b = 0.03f, c = 2.43f, d = 0.59f, e = 0.14f;
+        float r = (v.x * (a * v.x + b)) / (v.x * (c * v.x + d) + e);
+        float g = (v.y * (a * v.y + b)) / (v.y * (c * v.y + d) + e);
+        float b_ch = (v.z * (a * v.z + b)) / (v.z * (c * v.z + d) + e);
+        Vec3 result = {r, g, b_ch};
+
+        // 2. Apply Custom Saturation (User tuned down to 1.0 default)
+        float finalLum = result.x * 0.2126f + result.y * 0.7152f + result.z * 0.0722f;
+        result = Vec3(finalLum, finalLum, finalLum) + (result - Vec3(finalLum, finalLum, finalLum)) * saturation;
+
+        return result;
+    }
+
     static uint32_t packColor(const Vec3 &color)
     {
-        // Reinhard-family approximation: sqrt(x/(x+1)) maps [0,∞) → [0,1)
-        float r = std::sqrt(color.x / (color.x + 1.0f));
-        float g = std::sqrt(color.y / (color.y + 1.0f));
-        float b = std::sqrt(color.z / (color.z + 1.0f));
+        Vec3 mapped = tonemapACES(color);
+
+        // Standard Gamma 2.2
+        float invGamma = 1.0f / 2.2f;
+        float r = std::pow(std::max(mapped.x, 0.0f), invGamma);
+        float g = std::pow(std::max(mapped.y, 0.0f), invGamma);
+        float b = std::pow(std::max(mapped.z, 0.0f), invGamma);
 
         uint8_t ir = (uint8_t)(MathUtils::clamp(r, 0.f, 1.f) * 255);
         uint8_t ig = (uint8_t)(MathUtils::clamp(g, 0.f, 1.f) * 255);
@@ -60,8 +87,8 @@ struct Shader
     DebugMode instanceDebugMode = DebugMode::None;
 
     virtual void setFrameState(const Vec3 &camPos, const LightList *lts, const ShadowMap *sm) = 0;
-    // Returns a raw linear HDR Vec3. Tonemapping is done once by the renderer.
-    virtual Vec3 shade(const FragmentInput &frag) const = 0;
+    // Returns a raw linear HDR Vec4 (rgb, alpha). Tonemapping is done once by the renderer.
+    virtual Vec4 shade(const FragmentInput &frag) const = 0;
     virtual ~Shader() = default;
 
   protected:

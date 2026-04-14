@@ -97,6 +97,7 @@ struct QueuedTriangle
     Triangle tri;
     const Shader *shader;
     CullMode cull;
+    float depthSq; // For Painter's Algorithm sorting
 };
 
 class Renderer
@@ -276,7 +277,9 @@ class Renderer
         m_shadowMap    = nullptr;
 
         // --- 2. Main Pass — build the triangle bin ---
-        m_triangleBin.clear();
+        m_opaqueBin.clear();
+        m_transparentBin.clear();
+
         for (auto &e : scene.entities)
         {
             if (!e->mesh || !e->material)
@@ -308,7 +311,19 @@ class Renderer
                     qt.tri.v[2] = toScreen(poly.verts[j + 1], m_width, m_height);
                     qt.shader = e->material->shader;
                     qt.cull   = e->material->cullMode;
-                    m_triangleBin.push_back(qt);
+
+                    if (e->material->isTransparent)
+                    {
+                        // Calculate centroid depth for Painter's Algorithm
+                        Vec3 centroid = (poly.verts[0].worldPos + poly.verts[j].worldPos + poly.verts[j + 1].worldPos) * (1.0f / 3.0f);
+                        qt.depthSq = (centroid - scene.camera.position).lengthSq();
+                        m_transparentBin.push_back(qt);
+                    }
+                    else
+                    {
+                        qt.depthSq = 0.f; // Not needed for opaque
+                        m_opaqueBin.push_back(qt);
+                    }
                 }
             }
         }
@@ -321,6 +336,7 @@ class Renderer
         int tilesX = (m_width  + tileSize - 1) / tileSize;
         int tilesY = (m_height + tileSize - 1) / tileSize;
 
+        // --- 3a. Rasterize Opaque Geometry ---
         for (int ty = 0; ty < tilesY; ++ty)
         {
             for (int tx = 0; tx < tilesX; ++tx)
@@ -331,7 +347,7 @@ class Renderer
                         int xMin = tx * tileSize, xMax = std::min(xMin + tileSize, m_width)  - 1;
                         int yMin = ty * tileSize, yMax = std::min(yMin + tileSize, m_height) - 1;
 
-                        for (const auto &qt : m_triangleBin)
+                        for (const auto &qt : m_opaqueBin)
                         {
                             float triMinX = std::min({qt.tri.v[0].sx, qt.tri.v[1].sx, qt.tri.v[2].sx});
                             float triMaxX = std::max({qt.tri.v[0].sx, qt.tri.v[1].sx, qt.tri.v[2].sx});
@@ -342,15 +358,55 @@ class Renderer
                                 triMaxY < yMin || triMinY > yMax)
                                 continue;
 
-                            // IsShadowPass=false → full shading, writes HDR Vec3 to framebuffer
-                            rasterizeTriangle<false>(qt.tri, &m_fb, &m_db, nullptr,
-                                                     qt.cull, qt.shader,
-                                                     xMin, xMax, yMin, yMax);
+                            // IsShadowPass=false, WriteDepth=true
+                            rasterizeTriangle<false, true>(qt.tri, &m_fb, &m_db, nullptr,
+                                                           qt.cull, qt.shader,
+                                                           xMin, xMax, yMin, yMax);
                         }
                     });
             }
         }
-        m_pool.wait();
+        m_pool.wait(); // MUST finish opaque before drawing transparent!
+
+        // --- 3b. Sort & Rasterize Transparent Geometry (Painter's Algorithm) ---
+        if (!m_transparentBin.empty())
+        {
+            std::sort(m_transparentBin.begin(), m_transparentBin.end(), [](const QueuedTriangle &a, const QueuedTriangle &b)
+                      {
+                          return a.depthSq > b.depthSq; // Sort furthest to closest
+                      });
+
+            for (int ty = 0; ty < tilesY; ++ty)
+            {
+                for (int tx = 0; tx < tilesX; ++tx)
+                {
+                    m_pool.enqueue(
+                        [this, tx, ty, tileSize]()
+                        {
+                            int xMin = tx * tileSize, xMax = std::min(xMin + tileSize, m_width)  - 1;
+                            int yMin = ty * tileSize, yMax = std::min(yMin + tileSize, m_height) - 1;
+
+                            for (const auto &qt : m_transparentBin)
+                            {
+                                float triMinX = std::min({qt.tri.v[0].sx, qt.tri.v[1].sx, qt.tri.v[2].sx});
+                                float triMaxX = std::max({qt.tri.v[0].sx, qt.tri.v[1].sx, qt.tri.v[2].sx});
+                                float triMinY = std::min({qt.tri.v[0].sy, qt.tri.v[1].sy, qt.tri.v[2].sy});
+                                float triMaxY = std::max({qt.tri.v[0].sy, qt.tri.v[1].sy, qt.tri.v[2].sy});
+
+                                if (triMaxX < xMin || triMinX > xMax ||
+                                    triMaxY < yMin || triMinY > yMax)
+                                    continue;
+
+                                // IsShadowPass=false, WriteDepth=false
+                                rasterizeTriangle<false, false>(qt.tri, &m_fb, &m_db, nullptr,
+                                                                qt.cull, qt.shader,
+                                                                xMin, xMax, yMin, yMax);
+                            }
+                        });
+                }
+            }
+            m_pool.wait();
+        }
     }
 
     const uint32_t *pixelData() const { return m_pixels.data(); }
@@ -366,7 +422,8 @@ class Renderer
     Mat4 m_mvp, m_model, m_normalMat, m_shadowMVP;
     ShadowMap *m_shadowMap = nullptr;
     bool m_inShadowPass = false;
-    std::vector<QueuedTriangle> m_triangleBin;
+    std::vector<QueuedTriangle> m_opaqueBin;
+    std::vector<QueuedTriangle> m_transparentBin;
 
     void parallelFor(int start, int end, std::function<void(int, int)> func)
     {

@@ -15,7 +15,7 @@
 //
 // The template parameter is resolved at compile time so all dead branches
 // are eliminated — zero runtime overhead from the branching.
-template <bool IsShadowPass>
+template <bool IsShadowPass, bool WriteDepth = true>
 inline void rasterizeTriangle(const Triangle &tri, Framebuffer *fb, Depthbuffer *db, ShadowMap *sm,
                               CullMode cull, const Shader *shader,
                               int tileMinX, int tileMaxX, int tileMinY, int tileMaxY)
@@ -71,8 +71,10 @@ inline void rasterizeTriangle(const Triangle &tri, Framebuffer *fb, Depthbuffer 
                 }
                 else
                 {
-                    // Full shading pass
-                    if (db->test(x, y, z))
+                    // Choose depth test based on template parameter
+                    bool depthPass = WriteDepth ? db->test(x, y, z) : db->testReadOnly(x, y, z);
+
+                    if (depthPass)
                     {
                         // Perspective-correct interpolation via 1/w
                         float w = 1.f / (b0 * v0.invW + b1 * v1.invW + b2 * v2.invW);
@@ -84,12 +86,28 @@ inline void rasterizeTriangle(const Triangle &tri, Framebuffer *fb, Depthbuffer 
                         frag.tangent  = (v0.tangent  * b0 + v1.tangent  * b1 + v2.tangent  * b2) * w;
                         frag.depth    = z;
 
-                        // shade() returns a raw linear HDR Vec3
-                        Vec3 finalColor = shader ? shader->shade(frag)
-                                                 : Vec3{((tri.color >> 16) & 0xFF) / 255.f,
-                                                        ((tri.color >>  8) & 0xFF) / 255.f,
-                                                        ( tri.color        & 0xFF) / 255.f};
-                        fb->setPixel(x, y, finalColor);
+                        // shade() returns a raw linear HDR Vec4 (rgb, alpha)
+                        Vec4 shaderOut = shader ? shader->shade(frag)
+                                                : Vec4{((tri.color >> 16) & 0xFF) / 255.f,
+                                                       ((tri.color >>  8) & 0xFF) / 255.f,
+                                                       ( tri.color        & 0xFF) / 255.f, 
+                                                       1.0f};
+
+                        Vec3 srcColor = {shaderOut.x, shaderOut.y, shaderOut.z};
+                        float alpha = shaderOut.w;
+
+                        if (alpha >= 0.999f)
+                        {
+                            // Fully opaque, overwrite pixel
+                            fb->setPixel(x, y, srcColor);
+                        }
+                        else if (alpha > 0.001f)
+                        {
+                            // Alpha Blending (Painter's Over Op)
+                            Vec3 dstColor = fb->getPixel(x, y);
+                            Vec3 blended = srcColor * alpha + dstColor * (1.0f - alpha);
+                            fb->setPixel(x, y, blended);
+                        }
                     }
                 }
             }

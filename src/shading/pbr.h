@@ -15,6 +15,7 @@ struct PBRShader : Shader
 
     Vec3 albedo = {1.f, 1.f, 1.f};
     float metallic = 0.f, roughness = 0.5f, ao = 1.f;
+    float opacity = 1.0f; // 1.0 = fully opaque, 0.0 = fully transparent
 
     const Texture *albedoMap = nullptr, *roughnessMap = nullptr, *metallicMap = nullptr, *normalMap = nullptr;
     const Texture *irradianceMap = nullptr, *environmentMap = nullptr;
@@ -26,7 +27,7 @@ struct PBRShader : Shader
         shadowMap = sm;
     }
 
-    Vec3 shade(const FragmentInput &frag) const override
+    Vec4 shade(const FragmentInput &frag) const override
     {
         // --- 1. Debug Visualization ---
         DebugMode activeMode = getActiveMode();
@@ -57,7 +58,7 @@ struct PBRShader : Shader
                 float s = shadowMap->shadowFactor(frag.position);
                 dCol = {s, s, s};
             }
-            return dCol; // Return raw Vec3 — renderer will tonemap
+            return Vec4(dCol, 1.0f); // Debug views are always opaque
         }
 
         // --- 2. Surface Basis & Vectors ---
@@ -77,11 +78,13 @@ struct PBRShader : Shader
         Vec3 R = (N * (2.0f * N.dot(V)) - V).normalized();
 
         // --- 3. Material Sampling ---
-        Vec3 baseCol = albedo;
+        Vec3 baseCol = {std::pow(albedo.x, 2.2f), std::pow(albedo.y, 2.2f), std::pow(albedo.z, 2.2f)};
+
         if (albedoMap && albedoMap->loaded)
         {
             uint32_t t = albedoMap->sampleBilinear(frag.uv.x, frag.uv.y);
-            baseCol = {((t >> 16) & 0xFF) / 255.f, ((t >> 8) & 0xFF) / 255.f, (t & 0xFF) / 255.f};
+            Vec3 srgb = {((t >> 16) & 0xFF) / 255.f, ((t >> 8) & 0xFF) / 255.f, (t & 0xFF) / 255.f};
+            baseCol = {std::pow(srgb.x, 2.2f), std::pow(srgb.y, 2.2f), std::pow(srgb.z, 2.2f)};
         }
 
         float rough = roughness;
@@ -147,6 +150,6 @@ struct PBRShader : Shader
         }
 
         Vec3 ambient = (diffuseIBL + (specularIBL * (F_env * (1.0f - rough)))) * ao;
-        return ambient + Lo; // Raw HDR Vec3 — renderer tonemaps at the end
+        return Vec4(ambient + Lo, opacity); // Raw HDR Vec4 — renderer tonemaps at the end
     }
 };

@@ -12,6 +12,8 @@
 
 // Required definition for the static member in shader.h
 DebugMode Shader::globalDebugMode = DebugMode::None;
+float ShaderUtils::exposure = 1.0f;
+float ShaderUtils::saturation = 1.0f;
 
 int main(int, char *[])
 {
@@ -64,17 +66,16 @@ int main(int, char *[])
     scene.shadowMap.setup(key.direction, {0.f, 0.f, 0.f}, 12.f, 0.1f, 40.f);
 
     // --- 4. IBL Resources ---
-    // Note: Specular IBL uses the raw skybox, Diffuse IBL uses the blurred map
-    scene.environmentMap = assets.getTexture("assets/textures/skybox.jpg");
+    scene.environmentMap = assets.getTexture("assets/textures/skybox.hdr");
     Texture *sky = scene.environmentMap;
-    Texture *irr = assets.getIrradianceMap("assets/textures/skybox.jpg");
+    Texture *irr = assets.getIrradianceMap("assets/textures/skybox.hdr");
 
     // --- 5. Shaders & Materials ---
     PBRShader centerPBR;
     centerPBR.albedoMap = assets.getTexture("assets/textures/gabagool.jpg");
     centerPBR.normalMap = assets.getTexture("assets/textures/cube_normal.png");
     centerPBR.irradianceMap = irr;
-    centerPBR.environmentMap = sky; // For Specular Reflections
+    centerPBR.environmentMap = sky;
     centerPBR.metallic = 0.3f;
     centerPBR.roughness = 0.4f;
 
@@ -119,6 +120,23 @@ int main(int, char *[])
     matte.irradianceMap = irr;
     matte.environmentMap = sky;
 
+    // --- Transparent Glass Materials ---
+    PBRShader glassBlue;
+    glassBlue.albedo = {0.1f, 0.4f, 1.0f};
+    glassBlue.metallic = 0.1f;
+    glassBlue.roughness = 0.02f;
+    glassBlue.opacity = 0.4f;
+    glassBlue.irradianceMap = irr;
+    glassBlue.environmentMap = sky;
+
+    PBRShader glassRed;
+    glassRed.albedo = {1.0f, 0.2f, 0.2f};
+    glassRed.metallic = 0.1f;
+    glassRed.roughness = 0.02f;
+    glassRed.opacity = 0.4f;
+    glassRed.irradianceMap = irr;
+    glassRed.environmentMap = sky;
+
     Material groundMat = {&groundPBR, CullMode::None, false};
     Material centerMat = {&centerPBR, CullMode::Back, true};
     Material pillarMat = {&pillarPBR, CullMode::Back, true};
@@ -126,6 +144,10 @@ int main(int, char *[])
     Material matGold = {&gold, CullMode::Back, true};
     Material matPlastic = {&plastic, CullMode::Back, true};
     Material matMatte = {&matte, CullMode::Back, true};
+
+    // Notice CullMode::None so we see the back of the glass, and isTransparent = true
+    Material matGlassBlue = {&glassBlue, CullMode::None, false, true};
+    Material matGlassRed = {&glassRed, CullMode::None, false, true};
 
     // --- 6. Entity Hierarchy ---
     Entity *ground = scene.createEntity("ground");
@@ -168,6 +190,21 @@ int main(int, char *[])
     block->material = &blockMat;
     block->transform.position = {0.f, 5.0f, 0.f};
 
+    // --- Spawn Transparent Glass Panes ---
+    Entity *paneBlue = scene.createEntity("glassPaneBlue");
+    paneBlue->mesh = assets.getMesh("assets/models/cube.obj");
+    paneBlue->material = &matGlassBlue;
+    paneBlue->transform.position = {4.0f, 6.0f, 5.0f};
+    paneBlue->transform.scaleVec = {2.0f, 2.0f, 0.1f};
+    paneBlue->transform.rotation.y = MathUtils::toRadians(15.f);
+
+    Entity *paneRed = scene.createEntity("glassPaneRed");
+    paneRed->mesh = assets.getMesh("assets/models/cube.obj");
+    paneRed->material = &matGlassRed;
+    paneRed->transform.position = {3.5f, 6.0f, 3.0f};
+    paneRed->transform.scaleVec = {2.0f, 2.0f, 0.1f};
+    paneRed->transform.rotation.y = MathUtils::toRadians(10.f);
+
     // --- 7. Main Loop ---
     float angle = 0.f;
     uint32_t lastTicks = SDL_GetTicks();
@@ -192,6 +229,16 @@ int main(int, char *[])
             Shader::globalDebugMode = DebugMode::Shadows;
         if (keys[SDL_SCANCODE_5])
             Shader::globalDebugMode = DebugMode::Tangents;
+        if (keys[SDL_SCANCODE_P])
+        {
+            ShaderUtils::saturation += 0.01f;
+            std::cout << "Saturation: " << ShaderUtils::saturation << "\n";
+        }
+        if (keys[SDL_SCANCODE_L])
+        {
+            ShaderUtils::saturation -= 0.01f;
+            std::cout << "Saturation: " << ShaderUtils::saturation << "\n";
+        }
 
         // Flashlight toggle logic
         static bool f_was_pressed = false;
@@ -204,7 +251,7 @@ int main(int, char *[])
         }
         f_was_pressed = f_is_pressed;
 
-        scene.lights.lights[2].position  = scene.camera.position; // always track camera
+        scene.lights.lights[2].position = scene.camera.position; // always track camera
         scene.lights.lights[2].intensity = flashlight_on ? 5.0f : 0.0f;
 
         // --- Animations ---

@@ -17,4 +17,5 @@ class Framebuffer
     void clear(const Vec3 &clearColor) { std::fill(m_buffer.begin(), m_buffer.end(), clearColor); }
 
     inline void setPixel(int x, int y, const Vec3 &color) { m_buffer[y * m_width + x] = color; }
+    inline Vec3 getPixel(int x, int y) const { return m_buffer[y * m_width + x]; }
 };
