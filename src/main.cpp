@@ -25,11 +25,17 @@ int main(int, char *[])
     Scene scene;
 
     // --- Load scene from JSON ---
+    std::cout << "Loading assets/scenes/scene.json...\n";
+
     SceneLoader loader;
     if (!loader.load("assets/scenes/scene.json", scene, assets))
     {
-        std::cerr << "Fatal: could not load scene file.\n";
-        return 1;
+        std::cout << "scene.json not found or invalid. Falling back to default.json...\n";
+        if (!loader.load("assets/scenes/default.json", scene, assets))
+        {
+            std::cerr << "Fatal: Could not load scene.json OR default.json. Exiting.\n";
+            return 1;
+        }
     }
     scene.camera.aspect = (float)WIDTH / (float)HEIGHT;
 
