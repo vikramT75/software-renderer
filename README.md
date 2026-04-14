@@ -204,7 +204,7 @@ No math, rendering, or shading library is used — all of that is hand-written.
 
 ## Acknowledgements
 
-- [Tsoding](https://www.youtube.com/@Tsoding) — Project Inspiration
+- [Tsoding](https://www.youtube.com/@Tsoding) / [ncot_tech](https://www.youtube.com/@ncot_tech) — Project Inspiration
 - [LearnOpenGL](https://learnopengl.com/) — PBR theory and IBL references
 - [ACES Filmic Tonemapping](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/) — Krzysztof Narkowicz
 - [Physically Based Rendering: From Theory to Implementation](https://pbr-book.org/) — Pharr, Jakob, Humphreys
