@@ -229,16 +229,22 @@ int main(int, char *[])
             Shader::globalDebugMode = DebugMode::Shadows;
         if (keys[SDL_SCANCODE_5])
             Shader::globalDebugMode = DebugMode::Tangents;
-        if (keys[SDL_SCANCODE_P])
+        // Saturation control (edge-triggered, not hold-to-fire)
+        static bool p_was_pressed = false, l_was_pressed = false;
+        bool p_is_pressed = keys[SDL_SCANCODE_P];
+        bool l_is_pressed = keys[SDL_SCANCODE_L];
+        if (p_is_pressed && !p_was_pressed)
         {
-            ShaderUtils::saturation += 0.01f;
+            ShaderUtils::saturation += 0.1f;
             std::cout << "Saturation: " << ShaderUtils::saturation << "\n";
         }
-        if (keys[SDL_SCANCODE_L])
+        if (l_is_pressed && !l_was_pressed)
         {
-            ShaderUtils::saturation -= 0.01f;
+            ShaderUtils::saturation -= 0.1f;
             std::cout << "Saturation: " << ShaderUtils::saturation << "\n";
         }
+        p_was_pressed = p_is_pressed;
+        l_was_pressed = l_is_pressed;
 
         // Flashlight toggle logic
         static bool f_was_pressed = false;

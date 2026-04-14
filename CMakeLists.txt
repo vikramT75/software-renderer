@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if (MSVC)
-    add_compile_options(/W4)
+    add_compile_options(/W4 /O2 /arch:AVX2 /fp:fast)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
+    add_compile_options(-Wall -Wextra -Wpedantic -O3 -march=native -ffast-math)
 endif()
 
 find_package(SDL2 REQUIRED)

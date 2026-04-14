@@ -118,6 +118,7 @@ struct PBRShader : Shader
             if (nL > 0.0f)
             {
                 float nH = std::max(N.dot(H), 0.0f), hV = std::max(H.dot(V), 0.0f);
+                // Disney roughness remapping: α = rough², so α² = rough⁴
                 float a2 = std::pow(rough * rough, 2);
                 float D = a2 / (MathUtils::PI * std::pow(nH * nH * (a2 - 1.f) + 1.f, 2));
                 float k = std::pow(rough + 1.f, 2) / 8.f;

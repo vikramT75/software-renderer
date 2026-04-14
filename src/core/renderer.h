@@ -103,9 +103,6 @@ struct QueuedTriangle
 class Renderer
 {
   public:
-    CullMode cullMode = CullMode::Back;
-    const Shader *activeShader = nullptr;
-
     Renderer(int w, int h)
         : m_width(w), m_height(h),
           m_numThreads(std::max(1u, std::thread::hardware_concurrency())),
@@ -233,19 +230,12 @@ class Renderer
         Mat4 v = scene.camera.view(), p = scene.camera.projection();
 
         // --- 1. Shadow Pass (serial — ShadowMap::testAndSet is not thread-safe) ---
-        bool shadowPassFound = false;
+        scene.shadowMap.clear();
         for (auto &e : scene.entities)
         {
             if (!e->mesh || !e->material || !e->material->castsShadow)
                 continue;
             setShadowModel(e->worldMatrix, scene.shadowMap);
-            if (!shadowPassFound)
-            {
-                scene.shadowMap.clear();
-                m_shadowMap     = &scene.shadowMap;
-                m_inShadowPass  = true;
-                shadowPassFound = true;
-            }
 
             for (size_t i = 0; i + 2 < e->mesh->indices.size(); i += 3)
             {
@@ -262,19 +252,17 @@ class Renderer
                 for (int j = 1; j + 1 < poly.count; ++j)
                 {
                     Triangle tri;
-                    tri.v[0] = toScreen(poly.verts[0],     m_shadowMap->width, m_shadowMap->height);
-                    tri.v[1] = toScreen(poly.verts[j],     m_shadowMap->width, m_shadowMap->height);
-                    tri.v[2] = toScreen(poly.verts[j + 1], m_shadowMap->width, m_shadowMap->height);
+                    tri.v[0] = toScreen(poly.verts[0],     scene.shadowMap.width, scene.shadowMap.height);
+                    tri.v[1] = toScreen(poly.verts[j],     scene.shadowMap.width, scene.shadowMap.height);
+                    tri.v[2] = toScreen(poly.verts[j + 1], scene.shadowMap.width, scene.shadowMap.height);
                     // IsShadowPass=true → depth-only, no framebuffer, no shader
-                    rasterizeTriangle<true>(tri, nullptr, nullptr, m_shadowMap,
+                    rasterizeTriangle<true>(tri, nullptr, nullptr, &scene.shadowMap,
                                            e->material->cullMode, nullptr,
-                                           0, m_shadowMap->width - 1,
-                                           0, m_shadowMap->height - 1);
+                                           0, scene.shadowMap.width - 1,
+                                           0, scene.shadowMap.height - 1);
                 }
             }
         }
-        m_inShadowPass = false;
-        m_shadowMap    = nullptr;
 
         // --- 2. Main Pass — build the triangle bin ---
         m_opaqueBin.clear();
@@ -420,8 +408,6 @@ class Renderer
     Framebuffer m_fb;
     Depthbuffer m_db;
     Mat4 m_mvp, m_model, m_normalMat, m_shadowMVP;
-    ShadowMap *m_shadowMap = nullptr;
-    bool m_inShadowPass = false;
     std::vector<QueuedTriangle> m_opaqueBin;
     std::vector<QueuedTriangle> m_transparentBin;
 

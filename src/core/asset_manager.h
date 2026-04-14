@@ -70,7 +70,8 @@ class AssetManager
         auto irr = std::make_unique<Texture>();
         irr->width = 32;
         irr->height = 16;
-        irr->data.resize(irr->width * irr->height);
+        irr->isHDR = true; // Store as full-precision float — no 8-bit clamping
+        irr->hdrData.resize(irr->width * irr->height);
 
         std::cout << "Generating Irradiance Map (be patient)..." << std::endl;
 
@@ -89,12 +90,8 @@ class AssetManager
                            std::sin(theta_N),
                            std::cos(theta_N) * std::sin(phi_N)};
 
-                Vec3 irradiance = calculateIrradiance(sky, N);
-
-                uint8_t r = (uint8_t)(MathUtils::clamp(irradiance.x, 0.f, 1.f) * 255);
-                uint8_t g = (uint8_t)(MathUtils::clamp(irradiance.y, 0.f, 1.f) * 255);
-                uint8_t b = (uint8_t)(MathUtils::clamp(irradiance.z, 0.f, 1.f) * 255);
-                irr->data[y * irr->width + x] = 0xFF000000 | (r << 16) | (g << 8) | b;
+                // Store full HDR irradiance — no clamping
+                irr->hdrData[y * irr->width + x] = calculateIrradiance(sky, N);
             }
         }
 

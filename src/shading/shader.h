@@ -65,11 +65,11 @@ struct ShaderUtils
     {
         Vec3 mapped = tonemapACES(color);
 
-        // Standard Gamma 2.2
-        float invGamma = 1.0f / 2.2f;
-        float r = std::pow(std::max(mapped.x, 0.0f), invGamma);
-        float g = std::pow(std::max(mapped.y, 0.0f), invGamma);
-        float b = std::pow(std::max(mapped.z, 0.0f), invGamma);
+        // Fast gamma ~2.0 approximation (sqrt is a HW instruction, pow is not).
+        // True gamma 2.2 costs 3 transcendental pow calls per pixel.
+        float r = std::sqrt(std::max(mapped.x, 0.0f));
+        float g = std::sqrt(std::max(mapped.y, 0.0f));
+        float b = std::sqrt(std::max(mapped.z, 0.0f));
 
         uint8_t ir = (uint8_t)(MathUtils::clamp(r, 0.f, 1.f) * 255);
         uint8_t ig = (uint8_t)(MathUtils::clamp(g, 0.f, 1.f) * 255);
