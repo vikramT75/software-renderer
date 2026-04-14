@@ -1,99 +1,122 @@
-# swr — Software Renderer
+# SWR : Software Renderer
 
-A from-scratch, high-performance CPU rasterizer written in modern C++17. It uses SDL2 exclusively for window management and pixel upload to the screen. No GPU APIs (OpenGL/Vulkan/DirectX) and no third-party math libraries are used. 
+A from-scratch, high-performance CPU rasterizer written in modern C++17. It uses SDL2 exclusively for window management and pixel upload to the screen. No GPU APIs (OpenGL/Vulkan/DirectX) and no third-party math libraries are used.
 
 This project serves as an advanced portfolio piece demonstrating a deep understanding of rendering mathematics, multi-threaded performance engineering, and state-of-the-art physically based rendering (PBR).
 
-## Engine Features
+---
 
-This software renderer punches significantly above its weight class, implementing features typically reserved for hardware-accelerated engines:
+## Features
 
-*   **Physically Based Rendering (PBR):** Complete Cook-Torrance BRDF implementation featuring GGX Normal Distribution, Smith Geometry, and Fresnel-Schlick approximations.
-*   **Linear HDR Pipeline:** Native floating-point `Vec3` radiance buffers, operating entirely in linear color space. Supports floating-point `.hdr` textures directly via `stbi_loadf`.
-*   **Image-Based Lighting (IBL):** Monte Carlo hemispherical integration bakes physical irradiance maps from high-dynamic-range equirectangular skyboxes at startup for accurate ambient diffuse lighting.
-*   **Cinematic Post-Processing:** Implements ACES filmic tonemapping (per-channel), adjustable saturation/exposure, and a luminosity-threshold Bloom effect extracting highlights `> 1.0`.
-*   **Alpha Blending & Transparency:** Solves depth-sorting via the Painter's Algorithm. The renderer intelligently separates opaque and transparent geometry into distinct bins automatically sorting and rendering transparent triangles back-to-front.
-*   **Tiled Multi-Threading:** Rasterization is aggressively multithreaded. The screen is partitioned into isolated tiles processed by a custom, lock-free thread pool to maximize CPU utilization without risking frame-buffer race conditions.
-*   **Data-Driven Architecture:** Scenes, entities, hierarchies, materials, and HDR lighting are completely driven via JSON deserialization (`nlohmann/json`), moving configuration entirely out of the C++ source code.
-*   **Zero-Overhead Abstractions:** Uses advanced C++ templating (e.g., `rasterizeTriangle<IsShadowPass, WriteDepth>`) to eliminate runtime branching inside the hyper-critical inner rendering loops.
+### Rendering
+
+- **Physically Based Rendering (PBR)** — Full Cook-Torrance BRDF with GGX Normal Distribution, Smith Geometry masking, and Fresnel-Schlick approximations.
+- **Image-Based Lighting (IBL)** — Monte Carlo hemispherical integration bakes physical irradiance maps from HDR equirectangular skyboxes at startup, giving accurate ambient diffuse from real-world lighting environments.
+- **Shadow Mapping (PCF filtered)** — Percentage-Closer Filtering over a shadow depth buffer for soft, anti-aliased shadows.
+- **Alpha Blending & Transparency** — Opaque and transparent geometry are binned automatically. Transparent triangles are sorted back-to-front (Painter's Algorithm) each frame before blending.
+- **Linear HDR Pipeline** — All shading runs in linear color space using floating-point `Vec3` radiance buffers. Floating-point `.hdr` textures are loaded directly via `stbi_loadf`.
+
+### Post-Processing
+
+- **ACES Filmic Tonemapping** — Per-channel ACES curve maps HDR radiance to LDR display output with cinematic contrast.
+- **Bloom** — Luminosity-threshold extraction (highlights `> 1.0`) fed into a bloom pass.
+- **Adjustable Saturation & Exposure** — Real-time color grading via keyboard controls.
+- **Gamma 2.2** — sRGB approximation applied as the final step before pixel upload.
+
+### Performance
+
+- **Tiled Multi-Threading** — The framebuffer is partitioned into screen-space tiles. A custom lock-free thread pool dispatches tiles to CPU cores in parallel, eliminating framebuffer race conditions entirely.
+- **Zero-Overhead Abstractions** — The rasterizer is templated on `<IsShadowPass, WriteDepth>`, removing all runtime branching from the inner loop at compile time.
+- **Compiler SIMD Auto-Vectorization** — Build flags `-O3 -march=native -ffast-math` (GCC/Clang) and `/O2 /arch:AVX2 /fp:fast` (MSVC) are applied automatically, letting the compiler exploit AVX2 on modern CPUs.
+
+### Architecture
+
+- **Data-Driven Scenes** — Scenes, entities, materials, transforms, and lighting are defined entirely in JSON (`nlohmann/json`). No recompilation needed to change a scene.
+- **Near-Plane Clipping** — Sutherland-Hodgman clipping prevents artifacts from geometry crossing the camera near plane.
+- **Perspective-Correct Interpolation** — UVs, normals, and all varyings are interpolated correctly in clip space, not screen space.
+- **Debug Views** — Toggle normals, UVs, shadow maps, and tangents at runtime.
 
 ---
 
-## What's Implemented
+## Render Pipeline
 
-| Feature | File(s) |
-|---|---|
-| Window + SDL2 pixel upload | `platform/sdl_window.h` |
-| JSON Scene Deserializer | `loaders/scene_loader.h` |
-| Floating-Point HDR Framebuffer | `core/framebuffer.h` |
-| Multi-threaded Tiled Renderer | `core/renderer.h` |
-| Depth buffer & Depth Testing | `core/depthbuffer.h` |
-| Shadow mapping (PCF filtered) | `core/shadow_map.h` |
-| Row-major Mat4 & Fast Math | `math/mat4.h`, `math/math_utils.h` |
-| Scene Hierarchy & Transforms | `scene/scene.h`, `scene/entity.h` |
-| Camera & Free Look | `scene/camera.h` |
-| Near-plane Clipping | `pipeline/clipping.h` |
-| Edge-function Rasterization | `rasterizer/rasterizer.h` |
-| Perspective-correct interpolation | `rasterizer/rasterizer.h` |
-| Monte Carlo Irradiance Bake | `core/asset_manager.h` |
-| Cook–Torrance PBR Shading | `shading/pbr.h` |
-| HDR & LDR Texture Sampling | `shading/texture.h` |
-| OBJ mesh loader | `loaders/obj_loader.h` |
-
----
-
-## Architecture
-
-The engine follows a strict **Data-Driven Ownership Model**:
-
-```text
-SceneLoader
-├── Parses JSON → Allocates PBRShaders, Materials
-└── Populates Scene Data
-
-Scene (Data Container)
-├── Camera          (position, orientation, projection)
-├── LightList       (directional + point lights)
-├── ShadowMap       (depth buffer for the key light)
-└── Entity[]        (owns meshes, references materials)
-    ├── Transform   (position, rotation, scale, parent-child inheritance)
-    ├── Mesh*       (shared, owned by AssetManager)
-    └── Material*   (shared, owned by SceneLoader)
+```
+JSON Scene
+    │
+    ▼
+SceneLoader ──► AssetManager (Meshes, Textures, IBL bake)
+    │
+    ▼
+Scene (Camera, Lights, ShadowMap, Entities)
+    │
+    ▼
+Renderer::render(Scene&)
+    │
+    ├─ 1. Shadow Pass      — depth-only rasterization into ShadowMap
+    ├─ 2. Geometry Binning — sort triangles → Opaque[] / Transparent[]
+    ├─ 3. Opaque Pass      — tiled multi-threaded PBR + depth write
+    ├─ 4. Transparent Pass — back-to-front alpha blending
+    └─ 5. Post-Process     — Bloom → ACES Tonemap → Gamma 2.2 → SDL2 upload
 ```
 
-- **AssetManager** owns raw resources (Meshes, HDR/LDR Textures).
-- **SceneLoader** owns dynamic render state (Materials, Shaders).
-- **Scene** owns the scene graph (Entities, Lights).
-- **Renderer** consumes a `Scene&` and executes the pipeline:
-  1. **Shadow Pass:** Depth-only rasterization into the `ShadowMap`.
-  2. **Geometry Binning:** Triangles are sorted into `Opaque` or `Transparent` arrays.
-  3. **Opaque Pass:** Multi-threaded PBR rasterization with depth writing.
-  4. **Transparent Pass:** Sorted back-to-front rasterization with Alpha Blending.
-  5. **Post-Process Pass:** Bloom extraction, ACES tonemapping, and Gamma 2.2 approximation.
+---
+
+## Ownership Model
+
+| Owner | Owns |
+|---|---|
+| `AssetManager` | Raw GPU-like resources: `Mesh`, HDR/LDR `Texture` objects |
+| `SceneLoader` | Render state: `Material`, `PBRShader` instances |
+| `Scene` | Scene graph: `Entity[]`, `LightList`, `Camera`, `ShadowMap` |
+| `Renderer` | Consumes a `Scene&` — owns no persistent state |
 
 ---
 
-## Math Convention
+## Math Conventions
 
-- **Storage:** Row-major (`m[row][col]`)
-- **Multiplication:** Column-vector — `v' = M * v`
-- **Coordinate system:** Right-handed (camera looks down `-Z`)
-- **NDC:** x,y,z ∈ `[-1, +1]` (OpenGL convention)
-- **Screen origin:** Top-left
+| Property | Convention |
+|---|---|
+| Storage | Row-major — `m[row][col]` |
+| Vector multiply | Column-vector — `v' = M * v` |
+| Coordinate system | Right-handed, camera looks down `-Z` |
+| NDC range | `x, y, z ∈ [-1, +1]` (OpenGL convention) |
+| Screen origin | Top-left |
+
+---
+
+## File Map
+
+| Module | File(s) |
+|---|---|
+| Window + pixel upload | `platform/sdl_window.h` |
+| JSON scene loader | `loaders/scene_loader.h` |
+| OBJ mesh loader | `loaders/obj_loader.h` |
+| HDR framebuffer | `core/framebuffer.h` |
+| Depth buffer | `core/depthbuffer.h` |
+| Shadow map | `core/shadow_map.h` |
+| Multi-threaded renderer | `core/renderer.h` |
+| IBL irradiance bake | `core/asset_manager.h` |
+| Mat4 + fast math | `math/mat4.h`, `math/math_utils.h` |
+| Scene graph | `scene/scene.h`, `scene/entity.h` |
+| Camera & free-look | `scene/camera.h` |
+| Sutherland-Hodgman clipping | `pipeline/clipping.h` |
+| Edge-function rasterizer | `rasterizer/rasterizer.h` |
+| Cook-Torrance PBR | `shading/pbr.h` |
+| Texture sampling (HDR + LDR) | `shading/texture.h` |
 
 ---
 
 ## Controls
 
-| Key | Action |
+| Input | Action |
 |---|---|
-| `W`, `A`, `S`, `D` | Move Camera (Forward, Left, Back, Right) |
-| `E`, `Q` | Move Up / Down |
+| `W` `A` `S` `D` | Move camera (forward / left / back / right) |
+| `E` `Q` | Move up / down |
 | `Shift` | Sprint (4× speed) |
-| `F` | Toggle point light attached to camera (Flashlight) |
-| `P`, `L` | Step Saturation UP/DOWN (Color grading) |
-| `1` - `5` | Toggle Debug Views (None, Normals, UVs, Shadows, Tangents) |
-| `Mouse` | Free Look |
+| `F` | Toggle flashlight (point light attached to camera) |
+| `P` `L` | Saturation up / down |
+| `1` – `5` | Debug views: None, Normals, UVs, Shadows, Tangents |
+| `Mouse` | Free look |
 
 ---
 
@@ -102,60 +125,86 @@ Scene (Data Container)
 ### Prerequisites
 
 - CMake ≥ 3.16
-- C++17 compiler (GCC, Clang, MSVC)
+- C++17 compiler: GCC, Clang, or MSVC
 - SDL2 development libraries
-
-### Recommended Build Flags
-The codebase is heavily engineered to benefit from compiler auto-vectorization (SIMD) and fast math. The provided `CMakeLists.txt` automatically applies:
-- **GCC/Clang:** `-O3 -march=native -ffast-math`
-- **MSVC:** `/O2 /arch:AVX2 /fp:fast`
 
 ### Linux / macOS
 
 ```bash
-sudo apt install libsdl2-dev   # or: brew install sdl2
+sudo apt install libsdl2-dev   # Debian/Ubuntu
+# brew install sdl2            # macOS
+
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
+cmake --build build -j$(nproc)
 ./build/swr
 ```
-Or use the included script: `./build.sh`
+
+Or use the convenience script:
+
+```bash
+./build.sh
+```
 
 ### Windows (WSL)
 
 ```bash
-# From WSL (Debian/Ubuntu):
 sudo apt install libsdl2-dev
 bash build.sh
 ```
 
-### Windows (MSVC)
+### Windows (MSVC / Visual Studio)
 
 ```bash
 cmake -S . -B build -DSDL2_DIR="C:/SDL2/cmake"
 cmake --build build --config Release
 ```
 
+> **Tip:** The `CMakeLists.txt` automatically applies aggressive optimization flags for each compiler — no manual tuning needed.
+
 ---
 
 ## Project Layout
 
-```text
-swr/
-├─ src/
-│   ├─ core/          ← Renderer loop, IBL baking, Frame/Depth/Shadow buffers
-│   ├─ loaders/       ← JSON Scene parser, Wavefront OBJ parser
-│   ├─ math/          ← Custom vector, matrix, and accelerated math functions
-│   ├─ pipeline/      ← Sutherland-Hodgman clipping, projection
-│   ├─ platform/      ← SDL window, input system
-│   ├─ rasterizer/    ← Barycentric math, edge-function definitions
-│   ├─ scene/         ← Camera, Lights, Transforms, Entities, Materials
-│   ├─ shading/       ← Texture mapping, BRDF logic, Shaders
-│   ├─ third_party/   ← stb_image (textures), nlohmann (JSON)
-│   └─ main.cpp       ← Entry point, OS loop
-├─ assets/
-│   ├─ models/        ← .obj meshes
-│   ├─ scenes/        ← .json scene descriptions
-│   └─ textures/      ← HDR / LDR texture maps
-├─ CMakeLists.txt
-└─ build.sh
 ```
+swr/
+├── src/
+│   ├── core/          # Renderer loop, IBL baking, framebuffer, depth, shadow
+│   ├── loaders/       # JSON scene parser, Wavefront OBJ parser
+│   ├── math/          # Vec2/3/4, Mat4, fast math utilities
+│   ├── pipeline/      # Near-plane clipping, projection transforms
+│   ├── platform/      # SDL2 window, input polling
+│   ├── rasterizer/    # Barycentric coords, edge functions, scanline fill
+│   ├── scene/         # Camera, lights, transforms, entities, materials
+│   ├── shading/       # Texture sampling, Cook-Torrance BRDF, shaders
+│   ├── third_party/   # stb_image (header-only), nlohmann/json (header-only)
+│   └── main.cpp       # Entry point, main loop
+├── assets/
+│   ├── models/        # Wavefront .obj meshes
+│   ├── scenes/        # JSON scene descriptors
+│   └── textures/      # HDR equirectangular maps + LDR PBR texture sets
+├── screenshots/       # Render output images
+├── docs/              # Additional documentation
+├── CMakeLists.txt
+└── build.sh
+```
+
+---
+
+## Third-Party Dependencies
+
+| Library | Use | Vendored |
+|---|---|---|
+| [SDL2](https://www.libsdl.org/) | Window creation, pixel upload | No (system install) |
+| [stb_image / stb_image_write](https://github.com/nothings/stb) | LDR and HDR texture loading | Yes (`third_party/`) |
+| [nlohmann/json](https://github.com/nlohmann/json) | JSON scene deserialization | Yes (`third_party/`) |
+
+No math, rendering, or shading library is used — all of that is hand-written.
+
+---
+
+## Acknowledgements
+
+- [Tsoding](https://www.youtube.com/@Tsoding) — Project Inspiration
+- [LearnOpenGL](https://learnopengl.com/) — PBR theory and IBL references
+- [ACES Filmic Tonemapping](https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/) — Krzysztof Narkowicz
+- [Physically Based Rendering: From Theory to Implementation](https://pbr-book.org/) — Pharr, Jakob, Humphreys
