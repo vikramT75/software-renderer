@@ -34,8 +34,8 @@ multiplication convention.
 
 ## Projection
 
-We use a symmetric perspective projection mapping eye-space z ∈ [-zNear, -zFar]
-to NDC z ∈ [-1, +1] (OpenGL convention).
+We use a symmetric perspective projection mapping eye-space z ∈ `[-zNear, -zFar]`
+to NDC z ∈ `[-1, +1]` (OpenGL convention).
 
 ```
         [ f/a    0       0          0       ]
@@ -54,7 +54,7 @@ Attributes (UV, normals) must be divided by `w` before linear interpolation
 across the triangle in screen space, then divided by the interpolated `1/w` to
 recover the correct value.
 
-```
+```cpp
 // At each vertex: store  attr / w
 sv.uv = uv * invW;        // invW = 1.0 / clip.w
 
@@ -81,7 +81,7 @@ w2 = edge(v0, v1, p) / area2
 area2 = edge(v0, v1, v2)   (signed twice the triangle area)
 ```
 
-Point is inside when w0, w1, w2 are all ≥ 0 (CCW) or all ≤ 0 (CW).
+Point is inside when w0, w1, w2 are all `≥ 0` (CCW) or all `≤ 0` (CW).
 
 ## Rotation order
 
@@ -89,3 +89,43 @@ Point is inside when w0, w1, w2 are all ≥ 0 (CCW) or all ≤ 0 (CW).
 
 This means scale is applied first, then Z rotation, X rotation, Y rotation,
 then translation — a common "YXZ Euler" convention used in many game engines.
+
+---
+
+## Spherical UV Mapping (HDR IBL)
+
+To parse Equirectangular high-dynamic-range skyboxes seamlessly onto a virtual sphere and inversely calculate directional dependencies for lighting, we use standard trigonometric wrapping around the Y-axis.
+
+### Direction Vector to UV mapping:
+```cpp
+// Given a normalized direction vector 'd'
+float u = 0.5f - (atan2(d.z, d.x) / (2.0f * PI));
+float v = 0.5f + (asin(d.y) / PI);
+```
+
+### UV to Direction Vector mapping:
+```cpp
+// Inverse math to find direction out of a pixel layout
+float y = sin((v - 0.5f) * PI);
+float angle = (0.5f - u) * 2.0f * PI;
+float r = cos((v - 0.5f) * PI);
+float x = cos(angle) * r;
+float z = sin(angle) * r;
+
+Vec3 direction_to_sun = Vec3(x, y, z);
+```
+
+---
+
+## High-Performance Hardware Approximations
+
+Because software rendering cannot offload mathematics to GPU ALUs, standard transcendental math functions (`pow`, `sin`, `atan2`, etc.) become massive frame-time bottlenecks inside pixel-level inner loops. 
+
+1. **Fast-Math & Vectorization (`-ffast-math` / `/fp:fast`)**: 
+   The renderer's CMake pipeline forcefully configures compilers to drop strict IEEE 754 precision adherence (trading absolute floating point standards for speed). This instructs the optimizer to dynamically substitute complex instructions with fused hardware CPU-level SIMD intrinsics (AVX2/SSE) wherever arrays and loops allow.
+
+2. **Branchless Template Specialization (`<IsShadowPass, WriteDepth>`)**: 
+   Standard branching `if (statement)` kills CPU instruction caching. Rendering logic is parameterized primarily via compile-time boolean templates (`rasterizeTriangle<bool>`), stripping branching paths entirely and flattening the pipeline before assembly.
+
+3. **Gamma ≈ 2.0 Approximation**:
+   Correctly scaling linear output space to an sRGB ~2.2 monitor normally requires `std::pow(color, 1.0f / 2.2f)`, costing 3 heavy transcendental evaluations per pixel. This renderer safely degrades this standard to exactly a **2.0** exponent correction, mapping seamlessly to the standard `std::sqrt()` function which invokes a hyper-optimized intrinsic hardware route, rescuing millions of cycles per frame.
