@@ -7,7 +7,6 @@
 #include <string>
 #include <unordered_map>
 
-
 class AssetManager
 {
   public:
@@ -73,7 +72,7 @@ class AssetManager
         irr->isHDR = true; // Store as full-precision float — no 8-bit clamping
         irr->hdrData.resize(irr->width * irr->height);
 
-        std::cout << "Generating Irradiance Map (be patient)..." << std::endl;
+        std::cout << "Generating Irradiance Map..." << std::endl;
 
         for (int y = 0; y < irr->height; ++y)
         {
@@ -82,13 +81,11 @@ class AssetManager
                 float u = (float)x / irr->width;
                 float v = (float)y / irr->height;
 
-                float phi_N   = u * 2.0f * MathUtils::PI;
+                float phi_N = u * 2.0f * MathUtils::PI;
                 float theta_N = (v - 0.5f) * MathUtils::PI;
 
                 // World-space normal for this texel
-                Vec3 N = {std::cos(theta_N) * std::cos(phi_N),
-                           std::sin(theta_N),
-                           std::cos(theta_N) * std::sin(phi_N)};
+                Vec3 N = {std::cos(theta_N) * std::cos(phi_N), std::sin(theta_N), std::cos(theta_N) * std::sin(phi_N)};
 
                 // Store full HDR irradiance — no clamping
                 irr->hdrData[y * irr->width + x] = calculateIrradiance(sky, N);
@@ -117,21 +114,20 @@ class AssetManager
     Vec3 calculateIrradiance(const Texture *sky, const Vec3 &N)
     {
         // Build an orthonormal TBN frame around N
-        Vec3 up    = std::abs(N.y) < 0.999f ? Vec3{0.f, 1.f, 0.f} : Vec3{0.f, 0.f, 1.f};
+        Vec3 up = std::abs(N.y) < 0.999f ? Vec3{0.f, 1.f, 0.f} : Vec3{0.f, 0.f, 1.f};
         Vec3 right = up.cross(N).normalized();
         Vec3 newUp = N.cross(right).normalized();
 
-        Vec3  irradiance = {0.f, 0.f, 0.f};
-        int   samples    = 0;
-        float delta      = 0.05f; // ~2.9° step — gives 126 azimuth × 32 elevation = ~4 000 samples/texel
+        Vec3 irradiance = {0.f, 0.f, 0.f};
+        int samples = 0;
+        float delta = 0.05f; // ~2.9° step — gives 126 azimuth × 32 elevation = ~4 000 samples/texel
 
         for (float phi = 0.0f; phi < 2.0f * MathUtils::PI; phi += delta)
         {
             for (float theta = 0.0f; theta < 0.5f * MathUtils::PI; theta += delta)
             {
                 // Spherical → tangent space Cartesian
-                Vec3 tangentSample = {std::sin(theta) * std::cos(phi),
-                                      std::sin(theta) * std::sin(phi),
+                Vec3 tangentSample = {std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi),
                                       std::cos(theta)};
 
                 // Tangent space → world space

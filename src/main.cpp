@@ -26,7 +26,7 @@ int main(int, char *[])
 
     // --- Load scene from JSON ---
     SceneLoader loader;
-    if (!loader.load("assets/scenes/default.json", scene, assets))
+    if (!loader.load("assets/scenes/scene.json", scene, assets))
     {
         std::cerr << "Fatal: could not load scene file.\n";
         return 1;
@@ -39,7 +39,8 @@ int main(int, char *[])
     for (int i = 0; i < 3; ++i)
     {
         Entity *o = loader.findEntity("orbiter_" + std::to_string(i));
-        if (o) orbiters.push_back(o);
+        if (o)
+            orbiters.push_back(o);
     }
 
     // --- Main Loop ---

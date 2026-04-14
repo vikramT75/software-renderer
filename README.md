@@ -1,95 +1,101 @@
 # swr — Software Renderer
 
-A from-scratch CPU rasterizer written in C++17, using SDL2 only for window
-management and pixel upload. No GPU APIs. No third-party math libraries.
+A from-scratch, high-performance CPU rasterizer written in modern C++17. It uses SDL2 exclusively for window management and pixel upload to the screen. No GPU APIs (OpenGL/Vulkan/DirectX) and no third-party math libraries are used. 
 
-## What's implemented
+This project serves as an advanced portfolio piece demonstrating a deep understanding of rendering mathematics, multi-threaded performance engineering, and state-of-the-art physically based rendering (PBR).
+
+## Engine Features
+
+This software renderer punches significantly above its weight class, implementing features typically reserved for hardware-accelerated engines:
+
+*   **Physically Based Rendering (PBR):** Complete Cook-Torrance BRDF implementation featuring GGX Normal Distribution, Smith Geometry, and Fresnel-Schlick approximations.
+*   **Linear HDR Pipeline:** Native floating-point `Vec3` radiance buffers, operating entirely in linear color space. Supports floating-point `.hdr` textures directly via `stbi_loadf`.
+*   **Image-Based Lighting (IBL):** Monte Carlo hemispherical integration bakes physical irradiance maps from high-dynamic-range equirectangular skyboxes at startup for accurate ambient diffuse lighting.
+*   **Cinematic Post-Processing:** Implements ACES filmic tonemapping (per-channel), adjustable saturation/exposure, and a luminosity-threshold Bloom effect extracting highlights `> 1.0`.
+*   **Alpha Blending & Transparency:** Solves depth-sorting via the Painter's Algorithm. The renderer intelligently separates opaque and transparent geometry into distinct bins automatically sorting and rendering transparent triangles back-to-front.
+*   **Tiled Multi-Threading:** Rasterization is aggressively multithreaded. The screen is partitioned into isolated tiles processed by a custom, lock-free thread pool to maximize CPU utilization without risking frame-buffer race conditions.
+*   **Data-Driven Architecture:** Scenes, entities, hierarchies, materials, and HDR lighting are completely driven via JSON deserialization (`nlohmann/json`), moving configuration entirely out of the C++ source code.
+*   **Zero-Overhead Abstractions:** Uses advanced C++ templating (e.g., `rasterizeTriangle<IsShadowPass, WriteDepth>`) to eliminate runtime branching inside the hyper-critical inner rendering loops.
+
+---
+
+## What's Implemented
 
 | Feature | File(s) |
 |---|---|
 | Window + SDL2 pixel upload | `platform/sdl_window.h` |
-| ARGB framebuffer | `core/framebuffer.h` |
-| Floating-point depth buffer | `core/depthbuffer.h` |
-| Shadow mapping (depth-only pass) | `core/shadow_map.h` |
-| Scene-driven renderer | `core/renderer.h` |
-| Vec2 / Vec3 / Vec4 | `math/vec*.h` |
-| Row-major Mat4 (col-vector convention) | `math/mat4.h` |
-| Perspective projection (OpenGL NDC) | `math/mat4.h` |
-| LookAt view matrix | `math/mat4.h` |
-| Math utilities (clamp, radians, PI) | `math/math_utils.h` |
-| Scene container (camera, lights, entities) | `scene/scene.h` |
-| Entity (mesh + material + transform) | `scene/entity.h` |
-| Material (shader + cull mode + shadow flag) | `scene/material.h` |
-| SRT transform → model matrix | `scene/transform.h` |
-| FPS camera with mouse look | `scene/camera.h` |
-| Directional + point lights | `scene/light.h` |
-| Vertex / ClipVertex / ScreenVertex | `pipeline/vertex.h` |
-| Sutherland–Hodgman near-plane clipping | `pipeline/clipping.h` |
-| Viewport transform | `pipeline/projection.h` |
-| Edge-function rasterizer with back-face culling | `rasterizer/rasterizer.h` |
-| Perspective-correct interpolation (1/w) | `rasterizer/rasterizer.h` |
-| Barycentric coordinate computation | `rasterizer/barycentric.h` |
-| Shader base class + per-frame state injection | `shading/shader.h` |
-| PBR shading (Cook–Torrance BRDF) | `shading/pbr.h` |
-| Phong shading | `shading/phong.h` |
-| Lambert shading | `shading/lambert.h` |
-| Texture loading (BMP/PNG/JPG via stb_image) | `shading/texture.h` |
-| Bilinear texture filtering | `shading/texture.h` |
-| OBJ mesh loader (with normals + UVs) | `loaders/obj_loader.h` |
+| JSON Scene Deserializer | `loaders/scene_loader.h` |
+| Floating-Point HDR Framebuffer | `core/framebuffer.h` |
+| Multi-threaded Tiled Renderer | `core/renderer.h` |
+| Depth buffer & Depth Testing | `core/depthbuffer.h` |
+| Shadow mapping (PCF filtered) | `core/shadow_map.h` |
+| Row-major Mat4 & Fast Math | `math/mat4.h`, `math/math_utils.h` |
+| Scene Hierarchy & Transforms | `scene/scene.h`, `scene/entity.h` |
+| Camera & Free Look | `scene/camera.h` |
+| Near-plane Clipping | `pipeline/clipping.h` |
+| Edge-function Rasterization | `rasterizer/rasterizer.h` |
+| Perspective-correct interpolation | `rasterizer/rasterizer.h` |
+| Monte Carlo Irradiance Bake | `core/asset_manager.h` |
+| Cook–Torrance PBR Shading | `shading/pbr.h` |
+| HDR & LDR Texture Sampling | `shading/texture.h` |
+| OBJ mesh loader | `loaders/obj_loader.h` |
+
+---
 
 ## Architecture
 
-The renderer follows a **Scene → Entity → Material** data-driven design:
+The engine follows a strict **Data-Driven Ownership Model**:
 
-```
-Scene
+```text
+SceneLoader
+├── Parses JSON → Allocates PBRShaders, Materials
+└── Populates Scene Data
+
+Scene (Data Container)
 ├── Camera          (position, orientation, projection)
 ├── LightList       (directional + point lights)
 ├── ShadowMap       (depth buffer for the key light)
-└── Entity[]
-    ├── name
-    ├── Transform   (position, rotation, scale → model matrix)
-    ├── Mesh*       (shared, not owned — vertices + indices)
-    └── Material*   (shared, not owned)
-        ├── Shader* (PBR / Phong / Lambert instance with material params)
-        ├── CullMode
-        └── castsShadow
+└── Entity[]        (owns meshes, references materials)
+    ├── Transform   (position, rotation, scale, parent-child inheritance)
+    ├── Mesh*       (shared, owned by AssetManager)
+    └── Material*   (shared, owned by SceneLoader)
 ```
 
-- **Scene** is a pure data container with zero rendering logic.
-- **Entities** bind geometry, appearance, and placement. Multiple entities can
-  share the same `Mesh*` and `Material*` to save memory.
-- **Renderer** consumes a `Scene&` and produces a complete frame in two passes:
-  1. **Shadow pass** — depth-only rasterization into the shadow map for all
-     shadow-casting entities.
-  2. **Main pass** — full shading with PBR lighting, shadow lookup, and texture
-     sampling.
+- **AssetManager** owns raw resources (Meshes, HDR/LDR Textures).
+- **SceneLoader** owns dynamic render state (Materials, Shaders).
+- **Scene** owns the scene graph (Entities, Lights).
+- **Renderer** consumes a `Scene&` and executes the pipeline:
+  1. **Shadow Pass:** Depth-only rasterization into the `ShadowMap`.
+  2. **Geometry Binning:** Triangles are sorted into `Opaque` or `Transparent` arrays.
+  3. **Opaque Pass:** Multi-threaded PBR rasterization with depth writing.
+  4. **Transparent Pass:** Sorted back-to-front rasterization with Alpha Blending.
+  5. **Post-Process Pass:** Bloom extraction, ACES tonemapping, and Gamma 2.2 approximation.
 
-## Planned
+---
 
-- [ ] MSAA
-- [ ] Normal mapping
-- [ ] IBL ambient (currently a flat 0.08 ambient term)
-- [ ] Transparency / alpha blending
-- [ ] Frustum culling
+## Math Convention
 
-## Math convention
+- **Storage:** Row-major (`m[row][col]`)
+- **Multiplication:** Column-vector — `v' = M * v`
+- **Coordinate system:** Right-handed (camera looks down `-Z`)
+- **NDC:** x,y,z ∈ `[-1, +1]` (OpenGL convention)
+- **Screen origin:** Top-left
 
-- **Storage:** row-major (`m[row][col]`)
-- **Multiplication:** column-vector — `v' = M * v`
-- **Coordinate system:** right-handed (camera looks down -Z in eye space)
-- **NDC:** x,y,z ∈ [-1, +1]  (OpenGL convention)
-- **Screen origin:** top-left
+---
 
 ## Controls
 
 | Key | Action |
 |---|---|
-| W / A / S / D | Move forward / left / back / right |
-| E / Q | Move up / down |
-| Shift | Sprint (4× speed) |
-| F | Toggle flashlight (point light attached to camera) |
-| Mouse | Free look |
+| `W`, `A`, `S`, `D` | Move Camera (Forward, Left, Back, Right) |
+| `E`, `Q` | Move Up / Down |
+| `Shift` | Sprint (4× speed) |
+| `F` | Toggle point light attached to camera (Flashlight) |
+| `P`, `L` | Step Saturation UP/DOWN (Color grading) |
+| `1` - `5` | Toggle Debug Views (None, Normals, UVs, Shadows, Tangents) |
+| `Mouse` | Free Look |
+
+---
 
 ## Building
 
@@ -99,6 +105,11 @@ Scene
 - C++17 compiler (GCC, Clang, MSVC)
 - SDL2 development libraries
 
+### Recommended Build Flags
+The codebase is heavily engineered to benefit from compiler auto-vectorization (SIMD) and fast math. The provided `CMakeLists.txt` automatically applies:
+- **GCC/Clang:** `-O3 -march=native -ffast-math`
+- **MSVC:** `/O2 /arch:AVX2 /fp:fast`
+
 ### Linux / macOS
 
 ```bash
@@ -107,12 +118,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ./build/swr
 ```
-
-Or use the included build script:
-
-```bash
-./build.sh
-```
+Or use the included script: `./build.sh`
 
 ### Windows (WSL)
 
@@ -122,16 +128,6 @@ sudo apt install libsdl2-dev
 bash build.sh
 ```
 
-### Windows (MinGW)
-
-```bash
-cmake -S . -B build \
-  -DCMAKE_PREFIX_PATH="C:/SDL2-2.x.x/x86_64-w64-mingw32" \
-  -G "MinGW Makefiles" \
-  -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-```
-
 ### Windows (MSVC)
 
 ```bash
@@ -139,57 +135,27 @@ cmake -S . -B build -DSDL2_DIR="C:/SDL2/cmake"
 cmake --build build --config Release
 ```
 
-## Project layout
+---
 
-```
+## Project Layout
+
+```text
 swr/
 ├─ src/
-│   ├─ core/
-│   │   ├─ renderer.h       ← scene-driven render loop (shadow + main pass)
-│   │   ├─ shadow_map.h     ← depth-only shadow map
-│   │   ├─ framebuffer.h
-│   │   └─ depthbuffer.h
-│   ├─ math/
-│   │   ├─ vec2.h / vec3.h / vec4.h
-│   │   ├─ mat4.h
-│   │   └─ math_utils.h
-│   ├─ pipeline/
-│   │   ├─ vertex.h         ← Vertex / ClipVertex / ScreenVertex
-│   │   ├─ clipping.h       ← Sutherland–Hodgman near-plane clipper
-│   │   ├─ triangle.h
-│   │   └─ projection.h     ← viewport transform
-│   ├─ rasterizer/
-│   │   ├─ barycentric.h
-│   │   └─ rasterizer.h
-│   ├─ shading/
-│   │   ├─ shader.h         ← base Shader interface
-│   │   ├─ pbr.h            ← Cook–Torrance PBR (GGX + Smith + Fresnel)
-│   │   ├─ phong.h          ← Blinn-Phong
-│   │   ├─ lambert.h        ← Lambertian diffuse
-│   │   └─ texture.h        ← image loading + bilinear sampling
-│   ├─ scene/
-│   │   ├─ scene.h          ← top-level data container
-│   │   ├─ entity.h         ← mesh + material + transform binding
-│   │   ├─ material.h       ← shader + render state
-│   │   ├─ camera.h         ← FPS camera with mouse look
-│   │   ├─ transform.h      ← SRT → model matrix
-│   │   └─ light.h          ← directional + point light
-│   ├─ loaders/
-│   │   └─ obj_loader.h     ← Wavefront OBJ parser
-│   ├─ third_party/
-│   │   └─ stb_image.h
-│   ├─ platform/
-│   │   └─ sdl_window.h
-│   └─ main.cpp             ← scene setup + game loop
+│   ├─ core/          ← Renderer loop, IBL baking, Frame/Depth/Shadow buffers
+│   ├─ loaders/       ← JSON Scene parser, Wavefront OBJ parser
+│   ├─ math/          ← Custom vector, matrix, and accelerated math functions
+│   ├─ pipeline/      ← Sutherland-Hodgman clipping, projection
+│   ├─ platform/      ← SDL window, input system
+│   ├─ rasterizer/    ← Barycentric math, edge-function definitions
+│   ├─ scene/         ← Camera, Lights, Transforms, Entities, Materials
+│   ├─ shading/       ← Texture mapping, BRDF logic, Shaders
+│   ├─ third_party/   ← stb_image (textures), nlohmann (JSON)
+│   └─ main.cpp       ← Entry point, OS loop
 ├─ assets/
-│   ├─ models/              ← .obj meshes
-│   └─ textures/            ← .bmp / .jpg / .png textures
-├─ screenshots/
-├─ docs/
-│   ├─ pipeline.md
-│   ├─ math.md
-│   └─ shading.md
+│   ├─ models/        ← .obj meshes
+│   ├─ scenes/        ← .json scene descriptions
+│   └─ textures/      ← HDR / LDR texture maps
 ├─ CMakeLists.txt
-├─ build.sh
-└─ README.md
+└─ build.sh
 ```

@@ -14,7 +14,7 @@
         "width": 1024,
         "height": 1024,
         "bias": 0.012,
-        "direction": [-1.0, -1.0, -1.0],
+        "direction": [-0.53, -0.76, 0.38],
         "center": [0.0, 0.0, 0.0],
         "extent": 12.0,
         "zNear": 0.1,
@@ -24,7 +24,7 @@
     "lights": [
         {
             "type": "directional",
-            "direction": [-1.0, -1.0, -1.0],
+            "direction": [-0.53, -0.76, 0.38],
             "color": [1.0, 1.0, 1.0],
             "intensity": 2.0,
             "castsShadow": true
